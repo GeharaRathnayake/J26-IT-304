@@ -13,13 +13,17 @@ build/
 .env
 
 # Data and models
-/data/raw/**
-/data/processed/**
-/data/external/**
-/models/**
+data/**/*.csv
+data/**/*.parquet
+data/**/*.jsonl
+data/**/*.zip
+models/**/*.bin
+models/**/*.h5
+models/**/*.onnx
+models/**/*.pt
+models/**/*.pth
 
 # Tooling
 .coverage
 .pytest_cache/
 .DS_Store
-
