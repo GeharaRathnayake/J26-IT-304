@@ -1,0 +1,33 @@
+.breadcrumbs-nav {
+  display: flex;
+  align-items: center;
+}
+
+.breadcrumbs-list {
+  display: flex;
+  align-items: center;
+  list-style: none;
+  gap: 8px;
+  font-size: 13.5px;
+}
+
+.breadcrumbs-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.breadcrumbs-link {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.breadcrumbs-separator {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.breadcrumbs-current {
+  color: var(--text-dark);
+  font-weight: 700;
+}
