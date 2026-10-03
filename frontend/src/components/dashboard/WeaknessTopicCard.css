@@ -1,0 +1,62 @@
+.weakness-card {
+  padding: 26px 28px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.weakness-card-header {
+  margin-bottom: 24px;
+}
+
+.weakness-card-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin-bottom: 6px;
+}
+
+.weakness-card-description {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.weakness-topics-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.weakness-topic-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(226, 236, 236, 0.4);
+}
+
+.weakness-topic-row:last-child {
+  border-bottom: none;
+}
+
+.weakness-topic-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.weakness-topic-badge {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #E11D48;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.weakness-topics-empty {
+  padding: 16px 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  font-style: italic;
+}
