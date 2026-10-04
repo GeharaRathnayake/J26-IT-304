@@ -1,0 +1,114 @@
+.voice-control-bar-wrapper {
+  position: sticky;
+  bottom: 20px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+  z-index: 30;
+  margin-top: 20px;
+}
+
+.voice-control-pill {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 8px 12px 8px 24px;
+  border-radius: var(--radius-full);
+  box-shadow: 0 10px 30px rgba(16, 42, 45, 0.12), 0 2px 8px rgba(16, 42, 45, 0.04);
+  border: 1px solid rgba(226, 236, 236, 0.9);
+  transition: all var(--transition-normal);
+}
+
+.voice-control-pill:hover {
+  box-shadow: 0 14px 36px rgba(16, 42, 45, 0.16);
+  border-color: rgba(0, 163, 150, 0.3);
+}
+
+.control-pill-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: color var(--transition-fast);
+}
+
+.control-pill-btn:hover {
+  color: var(--color-primary);
+}
+
+.control-pill-divider {
+  width: 1px;
+  height: 20px;
+  background-color: var(--border-light);
+}
+
+.control-pill-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.control-pill-mic-btn {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(0, 163, 150, 0.4);
+  transition: all var(--transition-fast);
+  cursor: pointer;
+}
+
+.control-pill-mic-btn:hover {
+  background-color: var(--color-primary-hover);
+  transform: scale(1.05);
+}
+
+.control-pill-mic-btn:active {
+  transform: scale(0.96);
+}
+
+.mic-btn-active {
+  background-color: #EF4444;
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.45);
+}
+
+.mic-btn-active:hover {
+  background-color: #DC2626;
+}
+
+.mic-pulse-ring {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2px solid #EF4444;
+  animation: pulseRing 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+@keyframes pulseRing {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
