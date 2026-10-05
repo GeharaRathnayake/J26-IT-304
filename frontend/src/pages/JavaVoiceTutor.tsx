@@ -1,77 +1,138 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { VoiceVisualizerOrb, VoiceState } from '../components/voice/VoiceVisualizerOrb';
+import { ConversationStream, DialogueTurn } from '../components/voice/ConversationStream';
+import { VoiceControlBar } from '../components/voice/VoiceControlBar';
 import { Card } from '../components/common/Card';
-import { Button } from '../components/common/Button';
-import { Mic, Volume2 } from 'lucide-react';
+import './JavaVoiceTutor.css';
+
+const INITIAL_DIALOGUE: DialogueTurn[] = [
+  {
+    id: 'turn-1',
+    sender: 'AGENT',
+    text: 'Hi Demo. Name a Java topic, such as class and object, and I will explain it.',
+    timestamp: 'Just now',
+    strategyUsed: 'Adaptive Theory',
+  },
+];
+
+const SAMPLE_EXPLANATION = {
+  text: 'In Java, a Class is a user-defined blueprint or prototype from which objects are created. It represents the set of properties (fields) and behaviors (methods) that are common to all objects of one type.',
+  code: 'public class Car {\n    String model;\n    void drive() {\n        System.out.println("Driving...");\n    }\n}',
+};
 
 export const JavaVoiceTutor: React.FC = () => {
+  const [voiceState, setVoiceState] = useState<VoiceState>('IDLE');
+  const [dialogues, setDialogues] = useState<DialogueTurn[]>(INITIAL_DIALOGUE);
+
+  // Toggle Microphone (Start / Stop listening)
+  const handleToggleMic = () => {
+    if (voiceState === 'LISTENING') {
+      // User finished speaking -> Transition to Thinking -> Speaking
+      setVoiceState('THINKING');
+
+      setTimeout(() => {
+        // Add student message turn
+        const studentTurn: DialogueTurn = {
+          id: `turn-std-${Date.now()}`,
+          sender: 'STUDENT',
+          text: 'Can you explain Classes and Objects in Java?',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        };
+
+        setDialogues((prev) => [...prev, studentTurn]);
+        setVoiceState('SPEAKING');
+
+        // Play audio synthesis if supported
+        speakText(SAMPLE_EXPLANATION.text);
+
+        // Add AI Agent response turn
+        setTimeout(() => {
+          const agentTurn: DialogueTurn = {
+            id: `turn-agent-${Date.now()}`,
+            sender: 'AGENT',
+            text: SAMPLE_EXPLANATION.text,
+            codeSnippet: SAMPLE_EXPLANATION.code,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            strategyUsed: 'Adaptive Explanation',
+          };
+          setDialogues((prev) => [...prev, agentTurn]);
+
+          // Return back to idle after speech completes
+          setTimeout(() => {
+            setVoiceState('IDLE');
+          }, 3500);
+        }, 1200);
+      }, 900);
+    } else {
+      // Start listening
+      setVoiceState('LISTENING');
+    }
+  };
+
+  // Trigger speech synthesis
+  const speakText = (text: string) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  // Replay Audio for an existing message
+  const handlePlayAudio = (text: string) => {
+    speakText(text);
+    setVoiceState('SPEAKING');
+    setTimeout(() => {
+      setVoiceState('IDLE');
+    }, 2800);
+  };
+
+  // Reset to new session
+  const handleNewSession = () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    setVoiceState('IDLE');
+    setDialogues(INITIAL_DIALOGUE);
+  };
+
   return (
-    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <Card>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '16px' }}>
-          <div style={{
-            background: 'var(--color-primary-light)',
-            color: 'var(--color-primary)',
-            padding: '12px',
-            borderRadius: '12px',
-            display: 'flex'
-          }}>
-            <Mic size={24} />
-          </div>
-          <div>
-            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.08em' }}>
-              COMPONENT 2
-            </span>
-            <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-dark)' }}>
-              Java Voice Tutor
-            </h2>
-          </div>
-        </div>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '24px', maxWidth: '650px' }}>
-          Conversational voice-driven Java instruction powered by VAPI. Speak naturally to ask questions, receive multi-strategy explanations, and evaluate your understanding in real time.
-        </p>
+    <div className="java-voice-tutor-page animate-fade-in">
+      <div className="voice-tutor-layout">
+        {/* Left Column: Interactive 3D Voice Orb */}
+        <div className="voice-tutor-left-column">
+          <Card className="voice-tutor-main-card">
+            <div className="voice-tutor-header">
+              <h2 className="voice-tutor-title">Java Voice Tutor</h2>
+              <span className="voice-tutor-component-tag">2ND COMPONENT</span>
+            </div>
 
-        <div style={{
-          padding: '24px',
-          background: 'var(--bg-subtle)',
-          borderRadius: '14px',
-          border: '1px dashed var(--border-light)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '14px',
-          textAlign: 'center',
-          marginBottom: '20px'
-        }}>
-          <div style={{
-            width: '64px',
-            height: '64px',
-            borderRadius: '50%',
-            background: 'var(--color-primary)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#FFFFFF',
-            boxShadow: '0 8px 20px rgba(0, 163, 150, 0.3)'
-          }}>
-            <Mic size={28} />
-          </div>
-          <div>
-            <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-dark)' }}>
-              Voice Session Ready
-            </h3>
-            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-              Press the button below to start talking with your AI tutor
-            </span>
-          </div>
+            {/* Glowing 3D Orb Visualizer */}
+            <VoiceVisualizerOrb
+              state={voiceState}
+              onClick={handleToggleMic}
+            />
+          </Card>
         </div>
 
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <Button variant="primary" icon={<Volume2 size={16} />}>
-            Start Voice Conversation
-          </Button>
+        {/* Right Column: Live Conversation Stream */}
+        <div className="voice-tutor-right-column">
+          <ConversationStream
+            dialogues={dialogues}
+            onPlayAudio={handlePlayAudio}
+            isAgentSpeaking={voiceState === 'THINKING' || voiceState === 'SPEAKING'}
+          />
         </div>
-      </Card>
+      </div>
+
+      {/* Floating Bottom Capsule Control Bar */}
+      <VoiceControlBar
+        voiceState={voiceState}
+        onToggleMic={handleToggleMic}
+        onNewSession={handleNewSession}
+      />
     </div>
   );
 };
