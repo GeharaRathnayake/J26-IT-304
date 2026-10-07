@@ -27,3 +27,6 @@ models/**/*.pth
 .coverage
 .pytest_cache/
 .DS_Store
+
+# Agent Instructions
+AGENTS.md
