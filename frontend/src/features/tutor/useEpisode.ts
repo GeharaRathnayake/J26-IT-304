@@ -47,5 +47,5 @@ export function useEpisode() {
     });
   }, [state, transport]);
   const setFault = useCallback((next: MockFault) => { setMockFault(next); setFaultState(next); }, []);
-  return { state, topics, health, healthStatus, transport, fault, setFault, chooseTopic, send, retryHealth: checkHealth, reset: () => dispatch({ type: 'RESET' }), clearError: () => dispatch({ type: 'RETRY_CLEARED' }) };
+  return { state, topics, health, healthStatus, transport, fault, setFault, chooseTopic, send, retryHealth: checkHealth, reset: () => dispatch({ type: 'RESET' }) };
 }

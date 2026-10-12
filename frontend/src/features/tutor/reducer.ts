@@ -10,7 +10,6 @@ export type EpisodeAction =
   | { type: 'SEND_STARTED'; message: string; id: string; voice?: boolean }
   | { type: 'SEND_SUCCEEDED'; response: TutorResponse; tutorId: string }
   | { type: 'SEND_FAILED'; error: TutorError }
-  | { type: 'RETRY_CLEARED' }
   | { type: 'RESET' };
 
 export function phaseFromResponse(response: TutorResponse): Phase {
@@ -31,7 +30,6 @@ export function episodeReducer(state: EpisodeUI, action: EpisodeAction): Episode
       return { ...state, phase: phaseFromResponse(res), messages: [...state.messages, tutor], history, serverState: res.updated_state, lastResponse: res, episodeLog: res.episode_log, error: null, pendingText: null };
     }
     case 'SEND_FAILED': return { ...state, phase: state.serverState?.awaiting_cycle_confirmation ? 'awaiting_cycle_decision' : state.serverState || state.topic ? 'awaiting_student' : 'idle', error: action.error, pendingText: null, messages: state.messages.map((m) => m.id === state.messages.at(-1)?.id && m.role === 'student' ? { ...m, failed: true } : m) };
-    case 'RETRY_CLEARED': return { ...state, error: null };
     case 'RESET': return newEpisode();
   }
 }
