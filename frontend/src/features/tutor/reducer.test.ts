@@ -26,4 +26,17 @@ describe('episode state machine', () => {
     const failed = episodeReducer(started, { type: 'SEND_FAILED', error: new Error('network') as never });
     expect(failed.messages.at(-1)?.failed).toBe(true);
   });
+  it('clears the error when a resend starts, so an identical repeated failure re-triggers the composer restore', () => {
+    // The composer restores the failed text from an error-gated prop. That only
+    // fires again for the same text because SEND_STARTED nulls the error between
+    // two failures; this pins that dependency (review finding F3 was not a bug).
+    const err = new Error('503') as never;
+    const first = episodeReducer(episodeReducer(newEpisode('loops'), { type: 'SEND_STARTED', id: 'm1', message: 'hello' }), { type: 'SEND_FAILED', error: err });
+    expect(first.error).toBe(err);
+    const resent = episodeReducer(first, { type: 'SEND_STARTED', id: 'm2', message: 'hello' });
+    expect(resent.error).toBeNull();
+    const second = episodeReducer(resent, { type: 'SEND_FAILED', error: err });
+    expect(second.error).toBe(err);
+    expect(second.messages.filter((m) => m.failed).map((m) => m.id)).toEqual(['m1', 'm2']);
+  });
 });
