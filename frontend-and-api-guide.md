@@ -1,8 +1,9 @@
 # Java AI Tutor: Frontend and API Guide
 
 **Audience:** another frontend agent picking up `dev/frontend`, and the backend team (tutor service and Express server) who need to know exactly what the frontend sends, expects and assumes.
-**Last updated:** 2026-10-13 (revised after the frontend review; see `frontend-review-2026-10-13.md`)
-**Scope of verification:** everything below was checked against the code in `dev/frontend` and exercised in the browser in **`mock` mode only**. `direct` and `express` modes are implemented but have **not** been run against a real server. Anything in §10 is a known gap or an open question, not a settled decision.
+**Last updated:** 2026-10-13 (after the send-latch/timeout fixes; see `frontend-review-2026-10-13.md`)
+**Status:** feature-complete for PP1. The remaining work is **blocked on the backend, not unfinished frontend** — see §13.
+**Scope of verification:** everything below was checked against the code in `dev/frontend`. The suite is 49 tests, typecheck and build clean. Earlier rounds exercised `mock` mode in the browser and `direct` mode against a throwaway fake server; **the 2026-10-13 fixes (§10, items 12–13) have not yet been clicked through in a browser** — they are covered by tests and a negative control only. No mode has run against a real tutor service. Anything in §10 is a known gap or an open question, not a settled decision.
 
 Related documents in this folder:
 
@@ -28,7 +29,7 @@ cd dev/frontend
 npm install
 npm run dev          # http://localhost:5173 (port set in vite.config.ts)
 npm run typecheck
-npm test             # 37 tests (contract schemas, reducer, episode rules, topic inference)
+npm test             # 49 tests (contract schemas, reducer, episode rules, topic inference, transport timeouts)
 npm run build        # typecheck, then production build
 ```
 
@@ -68,7 +69,7 @@ Read in `src/features/tutor/config/env.ts`. Unknown or missing mode falls back t
 | `features/tutor/TutorFeatureApp.tsx` | The whole screen: sidebar, voice panel, transcript, research panel, voice-mode wiring. |
 | `features/tutor/SearchComposer.tsx` | The message composer (see §6). |
 | `features/tutor/useEpisode.ts` | The hook the UI talks to: `send`, `chooseTopic`, `reset`, health, topics, mock fault switch. |
-| `features/tutor/episodeRules.ts` | **Pure decisions behind `send`** (what a turn puts on the wire, the in-flight latch, topic resolution, health probe). Exists so they are unit-testable (see §10, item 4). |
+| `features/tutor/episodeRules.ts` | **Pure decisions behind `send`** (what a turn puts on the wire, the in-flight latch, the episode generation guard, topic resolution, health probe). Exists so they are unit-testable (see §10, item 4). |
 | `features/tutor/reducer.ts` | Pure episode state machine (see §5). Unit tested. |
 | `features/tutor/api/types.ts` | **Contract types. Shared with the Express teammate.** |
 | `features/tutor/api/schemas.ts` | Zod schemas for every response. |
@@ -223,7 +224,8 @@ Phases: `idle` → `awaiting_student` → `awaiting_tutor` → (`awaiting_studen
 `useEpisode.send(message, options?)`:
 
 - Ignored when the message is blank or the phase is `awaiting_tutor` / `closed` (the user-visible rule), **and** while another send holds an in-flight latch (a `useRef` latch set synchronously before the first dispatch, released in `finally`). The latch is the correctness guarantee: two calls from the same render both read the same captured `phase`, so the phase check alone cannot stop them.
-- Topic chosen by `resolveTurnTopic`: `options.topic` → the current topic → a topic named in the message (`inferTopic`) → **`GENERAL_TOPIC` (`'general'`)**. While `GET /topics` has not answered yet, inference **waits** for it instead of inferring from an empty list. If the result differs from the current topic it dispatches `TOPIC_CHANGED`, which restarts the episode.
+- Topic chosen by `resolveTurnTopic`, **synchronously**: `options.topic` → the current topic → a topic named in the message (`inferTopic`) → **`GENERAL_TOPIC` (`'general'`)**. The topic list is seeded with `FALLBACK_TOPICS` and is never empty, so nothing is awaited and the student's message appears immediately; a successful `GET /topics` replaces the list afterwards. If the result differs from the current topic it dispatches `TOPIC_CHANGED` **before** `SEND_STARTED`, because `TOPIC_CHANGED` returns `newEpisode()` and would otherwise clear the message just added. **Keep this path free of `await`** (§10, item 12).
+- **Generation guard.** `send` captures a token (after any `TOPIC_CHANGED`) and discards the response if the episode has since been replaced by `chooseTopic`, `reset` or another topic change. Without it, clicking "New chat" mid-reply appended the tutor message and the dead episode's `updated_state` to the fresh episode (§10, item 13).
 - The wire payload comes from `turnInputFor(state, topic, message)`: a turn on the **same topic** carries the accumulated `history` and the last `updated_state` verbatim; a turn whose topic differs from the episode's belongs to a **new episode** and carries `history: []` and `state: null`. (Today's UI callers always change topic via `TOPIC_CHANGED` before calling `send`, so this guard is hardening, not a live bug.)
 - Sends through the transport, then dispatches success or failure.
 
@@ -327,3 +329,22 @@ The `fixtures/*.json` files plus `schemas.test.ts` are a ready-made contract tes
 - Composer changes: re-read `searchbar-animation-refinement-guide.md` and the named constants at the top of `SearchComposer.tsx`. Keep the textarea's vertical padding at 0 and all measurement in the single `useLayoutEffect`.
 - Voice changes: remember the browser speech service sends audio to a third party (§8).
 - If you need a real microphone or speech recognition in automated tests, fake `navigator.mediaDevices.getUserMedia` and `window.SpeechRecognition` (this is how voice mode was verified).
+- Two invariants that are easy to break and expensive to debug: `resolveTurnTopic` must stay **synchronous** (anything awaited in `send` delays the student's first feedback and can wedge the latch), and `TOPIC_CHANGED` must be dispatched **before** `SEND_STARTED` (it returns `newEpisode()`, which clears `messages`). Both are commented at the call sites; §10 items 12–13 explain why.
+
+---
+
+## 13. Is the frontend finished?
+
+**For PP1: yes.** Every step of the build order is done, the five `action` branches, the error taxonomy, the research panel, voice mode and the composer are all implemented, and the suite is 49 tests with typecheck and build clean. No further frontend feature work is planned or needed for the PP1 demo.
+
+What remains is **blocked, not unfinished** — three items, none of which more frontend work can close:
+
+| Item | Blocked on | Note |
+|---|---|---|
+| **Live-service verification** (§10, item 4) | The tutor service existing | `direct` and `express` are implemented and exercised against a fake server. They have never met the real thing. This is the one that matters: run `fixtures/*.json` through the service first, then the UI. |
+| **Screen-reader verification of voice mode** (§8, review F7) | Someone with NVDA or Narrator | The DOM states are correct and were checked in a browser; the *spoken* behaviour has not been tested. Implemented, unverified. |
+| **Browser click-through of the 2026-10-13 fixes** (§10, items 12–13) | ~10 minutes with a browser | Covered by tests and a negative control, but not yet seen working by a human. Do this before the demo. |
+
+Beyond those, the open questions in §10 are **decisions for other people**, not frontend tasks: the `general` slug (item 1) is a service decision, `session_id` semantics (item 11) is a backend-storage decision, and the voice privacy and licensing questions (§8) need an ethics answer before real students use it.
+
+**Where the effort should go instead.** The frontend is the most finished part of this project; the confusion classifier and the escalation engine — the actual research contribution — do not exist yet in any form a viva can inspect. Note that `api/mockTransport.ts` is a tested, working implementation of the escalation state machine (order, request-vs-confusion trigger accounting, cycle limits, `counted_strategies`), so porting it to the service is transcription rather than design, and `fixtures/` + `schemas.ts` are already a contract test suite for whatever gets built. Four rounds of frontend work have, in effect, produced the backend's specification.
