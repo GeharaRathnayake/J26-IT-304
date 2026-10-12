@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createSendLatch, runExclusive, turnInputFor } from './episodeRules';
+import { createSendLatch, probeHealth, runExclusive, turnInputFor } from './episodeRules';
 import { episodeReducer, newEpisode } from './reducer';
 import type { TutorState } from './api/types';
 
@@ -62,5 +62,17 @@ describe('send latch (F2)', () => {
     const latch = createSendLatch();
     await expect(runExclusive(latch, async () => { throw new Error('network'); })).rejects.toThrow('network');
     expect(await runExclusive(latch, async () => 'retry')).toBe('retry');
+  });
+});
+
+describe('probeHealth (F6)', () => {
+  it('reports ok with the payload when /health answers', async () => {
+    const health = { status: 'ok' as const, model_loaded: true, llm_reachable: true, model_version: 'v1' };
+    expect(await probeHealth({ health: async () => health })).toEqual({ status: 'ok', health });
+  });
+
+  it('reports unreachable (not "nothing wrong") when /health rejects', async () => {
+    const result = await probeHealth({ health: async () => { throw new Error('network'); } });
+    expect(result).toEqual({ status: 'unreachable', health: null });
   });
 });

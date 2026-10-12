@@ -4,7 +4,7 @@ import { TutorError } from './api/errors';
 import { getMockFault, setMockFault, type MockFault } from './api/mockTransport';
 import type { TopicOption } from './api/types';
 import { episodeReducer, newEpisode } from './reducer';
-import { createSendLatch, runExclusive, turnInputFor } from './episodeRules';
+import { createSendLatch, probeHealth, runExclusive, turnInputFor, type HealthStatus } from './episodeRules';
 
 // Slug used when the student chats without choosing a topic. NOTE: the tutor
 // service validates topic slugs (422 for unknown ones), so it must accept this
@@ -16,8 +16,13 @@ export function useEpisode() {
   const [state, dispatch] = useReducer(episodeReducer, null, () => newEpisode());
   const [topics, setTopics] = useState<TopicOption[]>([]);
   const [health, setHealth] = useState<Awaited<ReturnType<TutorTransport['health']>> | null>(null);
+  const [healthStatus, setHealthStatus] = useState<HealthStatus>('checking');
   const [fault, setFaultState] = useState<MockFault>(getMockFault());
-  useEffect(() => { void loadTopics(transport).then(setTopics); void transport.health().then(setHealth).catch(() => undefined); }, [transport]);
+  const checkHealth = useCallback(() => {
+    setHealthStatus('checking');
+    void probeHealth(transport).then((result) => { setHealth(result.health); setHealthStatus(result.status); });
+  }, [transport]);
+  useEffect(() => { void loadTopics(transport).then(setTopics); checkHealth(); }, [transport, checkHealth]);
   // Checked and set synchronously, so two sends raised from the same render
   // (which both read the same captured `state.phase`) cannot both go out.
   const sendLatch = useRef(createSendLatch());
@@ -42,6 +47,5 @@ export function useEpisode() {
     });
   }, [state, transport]);
   const setFault = useCallback((next: MockFault) => { setMockFault(next); setFaultState(next); }, []);
-  const retryHealth = useCallback(() => { void transport.health().then(setHealth).catch(() => undefined); }, [transport]);
-  return { state, topics, health, transport, fault, setFault, chooseTopic, send, retryHealth, reset: () => dispatch({ type: 'RESET' }), clearError: () => dispatch({ type: 'RETRY_CLEARED' }) };
+  return { state, topics, health, healthStatus, transport, fault, setFault, chooseTopic, send, retryHealth: checkHealth, reset: () => dispatch({ type: 'RESET' }), clearError: () => dispatch({ type: 'RETRY_CLEARED' }) };
 }
