@@ -24,3 +24,36 @@ export function turnInputFor(state: EpisodeUI, topic: string, message: string): 
     profile: null,
   };
 }
+
+/** A synchronous in-flight latch. The `phase` check in `send` reads a value
+ * captured at render time, so two calls from the same render both pass it; a
+ * ref-backed latch is checked and set before the first dispatch, so they cannot. */
+export interface SendLatch {
+  tryAcquire(): boolean;
+  release(): void;
+}
+
+export function createSendLatch(): SendLatch {
+  let busy = false;
+  return {
+    tryAcquire() {
+      if (busy) return false;
+      busy = true;
+      return true;
+    },
+    release() {
+      busy = false;
+    },
+  };
+}
+
+/** Runs `task` unless another run holds the latch. Always releases, even if the
+ * task throws. Resolves to `undefined` when it was skipped. */
+export async function runExclusive<T>(latch: SendLatch, task: () => Promise<T>): Promise<T | undefined> {
+  if (!latch.tryAcquire()) return undefined;
+  try {
+    return await task();
+  } finally {
+    latch.release();
+  }
+}

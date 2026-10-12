@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { turnInputFor } from './episodeRules';
+import { createSendLatch, runExclusive, turnInputFor } from './episodeRules';
 import { episodeReducer, newEpisode } from './reducer';
 import type { TutorState } from './api/types';
 
@@ -32,5 +32,35 @@ describe('turnInputFor (F1)', () => {
     const input = turnInputFor(newEpisode(), 'general', 'hello');
     expect(input.history).toEqual([]);
     expect(input.state).toBeNull();
+  });
+});
+
+describe('send latch (F2)', () => {
+  it('lets only one of two same-tick calls through', async () => {
+    const latch = createSendLatch();
+    let started = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const task = async () => { started += 1; await gate; return 'sent'; };
+    // Both calls are made before either has a chance to finish: the second sees
+    // the latch held, exactly like two handlers firing from one render.
+    const first = runExclusive(latch, task);
+    const second = runExclusive(latch, task);
+    release();
+    expect(await first).toBe('sent');
+    expect(await second).toBeUndefined();
+    expect(started).toBe(1);
+  });
+
+  it('releases after completion so the next send is allowed', async () => {
+    const latch = createSendLatch();
+    await runExclusive(latch, async () => 'one');
+    expect(await runExclusive(latch, async () => 'two')).toBe('two');
+  });
+
+  it('releases when the task throws, so a failed send does not wedge the composer', async () => {
+    const latch = createSendLatch();
+    await expect(runExclusive(latch, async () => { throw new Error('network'); })).rejects.toThrow('network');
+    expect(await runExclusive(latch, async () => 'retry')).toBe('retry');
   });
 });
