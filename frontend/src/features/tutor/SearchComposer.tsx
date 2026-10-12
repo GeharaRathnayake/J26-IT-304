@@ -87,7 +87,9 @@ export function SearchComposer({ topics, topic, onTopicChange, onEngage, onDisen
   const topicLabel = topics.find((item) => item.id === topic)?.label ?? '';
   const topicActive = topicLabel !== '' && draft.includes(topicLabel);
   const labels = useMemo(() => topics.map((item) => item.label).filter(Boolean), [topics]);
-  const hasContent = labels.reduce((text, label) => text.split(label).join(''), draft).trim().length > 0;
+  // A draft that is only a topic label (what picking a topic produces) is a valid
+  // message: "Loops" asks the tutor to teach loops.
+  const hasContent = draft.trim().length > 0;
   // The mirror draws labels in real bold, which is wider than the regular
   // glyphs the textarea lays out. Tighten each bold word's letter-spacing so it
   // takes exactly the regular width and the two layers stay aligned everywhere.
