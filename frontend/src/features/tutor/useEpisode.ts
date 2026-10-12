@@ -4,6 +4,7 @@ import { TutorError } from './api/errors';
 import { getMockFault, setMockFault, type MockFault } from './api/mockTransport';
 import type { TopicOption } from './api/types';
 import { episodeReducer, newEpisode } from './reducer';
+import { turnInputFor } from './episodeRules';
 
 // Slug used when the student chats without choosing a topic. NOTE: the tutor
 // service validates topic slugs (422 for unknown ones), so it must accept this
@@ -27,7 +28,7 @@ export function useEpisode() {
     const id = crypto.randomUUID();
     dispatch({ type: 'SEND_STARTED', message, id, voice: options?.voice });
     try {
-      const response = await transport.sendTurn({ topic, message, history: state.history, state: state.serverState, profile: null });
+      const response = await transport.sendTurn(turnInputFor(state, topic, message));
       dispatch({ type: 'SEND_SUCCEEDED', response, tutorId: crypto.randomUUID() });
     } catch (error) {
       const tutorError = error instanceof TutorError ? error : new TutorError('unknown', 'Unexpected tutor error', { cause: error });
