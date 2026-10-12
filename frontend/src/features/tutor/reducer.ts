@@ -3,7 +3,7 @@ import type { TutorError } from './api/errors';
 
 export type Phase = 'idle' | 'awaiting_tutor' | 'awaiting_student' | 'awaiting_cycle_decision' | 'closed';
 export interface UIMessage { id: string; role: 'student' | 'tutor'; text: string; strategy?: TutorResponse['strategy']; trigger?: TutorResponse['trigger']; cycle?: number; fallback?: boolean; failed?: boolean; voice?: boolean; transcript?: string; audioUrl?: string; }
-export interface EpisodeUI { phase: Phase; topic: string | null; sessionId: string; messages: UIMessage[]; history: HistoryTurn[]; serverState: TutorState | null; lastResponse: TutorResponse | null; episodeLog: EpisodeLog | null; error: TutorError | null; pendingText: string | null; }
+export interface EpisodeUI { phase: Phase; topic: string | null; messages: UIMessage[]; history: HistoryTurn[]; serverState: TutorState | null; lastResponse: TutorResponse | null; episodeLog: EpisodeLog | null; error: TutorError | null; pendingText: string | null; }
 
 export type EpisodeAction =
   | { type: 'TOPIC_CHANGED'; topic: string }
@@ -18,7 +18,7 @@ export function phaseFromResponse(response: TutorResponse): Phase {
   if (response.updated_state.awaiting_cycle_confirmation) return 'awaiting_cycle_decision';
   return 'awaiting_student';
 }
-export function newEpisode(topic: string | null = null): EpisodeUI { return { phase: topic ? 'awaiting_student' : 'idle', topic, sessionId: `sess_${crypto.randomUUID().slice(0, 8)}`, messages: [], history: [], serverState: null, lastResponse: null, episodeLog: null, error: null, pendingText: null }; }
+export function newEpisode(topic: string | null = null): EpisodeUI { return { phase: topic ? 'awaiting_student' : 'idle', topic, messages: [], history: [], serverState: null, lastResponse: null, episodeLog: null, error: null, pendingText: null }; }
 
 export function episodeReducer(state: EpisodeUI, action: EpisodeAction): EpisodeUI {
   switch (action.type) {
