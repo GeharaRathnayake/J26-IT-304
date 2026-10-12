@@ -1,0 +1,872 @@
+@import '@fontsource/nunito/400.css';
+@import '@fontsource/nunito/600.css';
+@import '@fontsource/nunito/700.css';
+@import '@fontsource/nunito/800.css';
+@import 'tailwindcss';
+
+/* Semantic tokens, registered with Tailwind so utilities like `bg-surface` and
+   `text-ink-muted` are generated. Values are redefined for dark mode below.
+   System font stack only — no web fonts, per 10_DECISIONS.md Q9, so the
+   "fully offline" claim (C8) stays true of the frontend too. */
+@theme {
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-border-subtle: var(--border-subtle);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+
+  --font-sans:
+    'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono',
+    monospace;
+}
+
+:root {
+  --surface: #f4f8fb;
+  --surface-raised: #ffffff;
+  --surface-sunken: #e5eff6;
+  --border-subtle: #d7e4ed;
+  --ink: #263b4b;
+  --ink-muted: #617687;
+  --ink-faint: #8da0ad;
+  --accent: #3f6f91;
+  --accent-soft: #e4eff6;
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Keep the tutor aligned with the reference app even when the OS is in
+       dark mode: #FFF9FA is the page and #FFFFFF is the elevated surface. */
+    --surface: #f4f8fb;
+    --surface-raised: #ffffff;
+    --surface-sunken: #e5eff6;
+    --border-subtle: #d7e4ed;
+    --ink: #263b4b;
+    --ink-muted: #617687;
+    --ink-faint: #8da0ad;
+    --accent: #3f6f91;
+    --accent-soft: #e4eff6;
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  transition: transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+button:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.tutor-header {
+  min-height: 72px;
+  box-shadow: 0 3px 12px rgba(217, 108, 138, .10);
+  z-index: 2;
+}
+
+.tutor-new-topic {
+  width: 44px;
+  height: 44px;
+  border: 2px solid var(--accent);
+  border-radius: 999px;
+  color: var(--accent);
+  background: transparent;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.tutor-new-topic:hover {
+  background: var(--accent-soft);
+}
+
+.tutor-empty-star {
+  color: var(--accent);
+  font-size: 34px;
+  line-height: 1;
+}
+
+.tutor-empty-title {
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.tutor-empty-state {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 240ms ease, transform 240ms ease;
+}
+
+/* First message sent: float up toward the header and fade out. Out of flow so
+   the new message does not wait for it. */
+.tutor-empty-state-leaving {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  opacity: 0;
+  transform: translateY(-96px);
+  pointer-events: none;
+}
+
+.tutor-empty-state-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tutor-composer {
+  position: absolute;
+  z-index: 4;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  border-top: 0;
+  background: transparent;
+  padding-bottom: 16px;
+  transition: transform 240ms ease;
+}
+
+.tutor-main {
+  position: relative;
+}
+
+.tutor-sidebar {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  min-height: 100vh;
+  padding: 12px 8px;
+  border-right: 1px solid var(--border-subtle);
+  background: var(--surface-raised);
+  box-shadow: 2px 0 12px rgba(63, 111, 145, .08);
+  transition: width 180ms ease;
+  z-index: 6;
+}
+
+.tutor-sidebar-open {
+  width: 196px;
+}
+
+.tutor-sidebar-collapsed {
+  width: 58px;
+}
+
+.tutor-sidebar-home {
+  flex: 0 0 42px;
+}
+
+.tutor-sidebar-navigation {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  margin-top: 18px;
+}
+
+.tutor-sidebar-icon {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  color: var(--ink-muted);
+  background: transparent;
+  text-align: left;
+  font-size: .82rem;
+  font-weight: 700;
+}
+
+.tutor-sidebar-icon:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.tutor-sidebar-icon svg {
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
+}
+
+.tutor-sidebar-label {
+  margin: 18px 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink-faint);
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.tutor-sidebar-label svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.tutor-sidebar-divider {
+  height: 1px;
+  /* Sidebar top padding (12px) + toggle (42px) + top spacing (18px) = 72px,
+     matching the header height exactly. */
+  margin: 18px 4px 8px;
+  background: var(--border-subtle);
+}
+
+.tutor-sidebar-research {
+  margin-top: auto;
+}
+
+.tutor-sidebar-research-active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.tutor-research-sidebar {
+  width: 196px;
+  border-right: 1px solid var(--border-subtle);
+  background: var(--surface-raised);
+  color: var(--ink);
+}
+
+.tutor-research-sidebar-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  border-radius: 10px;
+  padding: 0 10px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.tutor-research-sidebar-heading svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.tutor-research-sidebar-heading h2 {
+  margin: 0;
+  font-size: .82rem;
+  font-weight: 800;
+}
+
+.tutor-research-sidebar-heading span {
+  margin-left: auto;
+  color: var(--ink-faint);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .58rem;
+}
+
+.tutor-research-sidebar .tutor-panel-card {
+  border-color: var(--border-subtle);
+  background: var(--surface-sunken);
+}
+
+.tutor-sidebar-collapsed-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.tutor-header > .tutor-new-topic {
+  display: none;
+}
+
+.tutor-header > label,
+.tutor-header > button[aria-pressed] {
+  display: none;
+}
+
+.tutor-past-chats {
+  min-width: 0;
+  margin-top: 10px;
+}
+
+.tutor-past-chats .tutor-sidebar-label {
+  margin-top: 10px;
+}
+
+.tutor-past-chat,
+.tutor-past-empty {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  width: 100%;
+  overflow: hidden;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--ink-muted);
+  background: transparent;
+  font-size: .8rem;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tutor-past-chat > svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--accent);
+}
+
+.tutor-past-chat > span {
+  min-width: 0;
+}
+
+.tutor-show-more {
+  display: block;
+  margin: 6px 10px 0;
+  padding: 4px 0;
+  border: 0;
+  color: var(--accent);
+  background: transparent;
+  font-size: .75rem;
+  font-weight: 800;
+  text-align: left;
+}
+
+.tutor-show-more:hover {
+  text-decoration: underline;
+}
+
+.tutor-topics {
+  margin-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 4px;
+}
+
+.tutor-sidebar-select {
+  width: 100%;
+  border: 1px solid var(--border-subtle);
+  border-radius: 9px;
+  padding: 8px 9px;
+  color: var(--ink);
+  background: var(--surface-raised);
+  font-size: .78rem;
+}
+
+.tutor-past-chat:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.tutor-past-chat-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.tutor-past-chat-title,
+.tutor-past-chat-meta {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tutor-past-chat-title {
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.tutor-past-chat-meta {
+  margin-top: 0;
+  color: var(--ink-faint);
+  font-size: .68rem;
+  line-height: 1.15;
+}
+
+.tutor-past-empty {
+  color: var(--ink-faint);
+  font-size: .75rem;
+}
+
+.tutor-sidebar-new {
+  margin-top: auto;
+}
+
+.tutor-composer-idle {
+  transform: translateY(-230px);
+}
+
+.tutor-composer-idle .tutor-composer-inner {
+  max-width: 828px;
+}
+
+.tutor-composer-inner {
+  position: relative;
+  border: 1px solid var(--border-subtle);
+  border-radius: 26px;
+  box-shadow: 0 0 18px rgba(63, 111, 145, .16);
+  padding: 8px;
+  transition: max-width 240ms ease;
+}
+
+.tutor-composer-content {
+  position: relative;
+  min-height: 42px;
+}
+
+.tutor-composer-multiline {
+  padding-top: 4px;
+  padding-bottom: 52px;
+}
+
+/* Anchor every composer control to the lower row while the text area grows
+   upward above it. */
+.tutor-composer-multiline .tutor-topic-picker-wrap {
+  top: auto;
+  bottom: 0;
+}
+
+.tutor-composer-multiline .tutor-voice-button,
+.tutor-composer-multiline .tutor-send-button {
+  top: auto;
+  bottom: 0;
+}
+
+.tutor-composer textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  color: var(--ink);
+  caret-color: var(--accent);
+  border: 0;
+  background: transparent;
+  outline: none;
+  overflow-y: auto;
+  scrollbar-width: none;
+  line-height: 22px;
+  padding: 0 104px 0 58px;
+  transition: font-size 180ms ease;
+}
+
+.tutor-composer-field {
+  position: relative;
+}
+
+/* Invisible copy of the textarea text that carries the selected-topic suffix. */
+.tutor-composer-mirror {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.tutor-composer-topic-token {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.tutor-composer-mirror-disabled {
+  opacity: .5;
+}
+
+/* The textarea only supplies input, caret and selection; the mirror paints the
+   visible text so the topic token can be styled. */
+.tutor-composer textarea.tutor-composer-input-ghost {
+  color: transparent;
+}
+
+.tutor-composer textarea::-webkit-scrollbar {
+  display: none;
+}
+
+.tutor-composer textarea.tutor-composer-input-compact {
+  font-size: .94rem;
+}
+
+.tutor-composer-topic-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  color: var(--accent);
+  background: var(--surface-raised);
+}
+
+.tutor-composer-topic-button:hover {
+  background: var(--accent-soft);
+}
+
+.tutor-composer-topic-button-active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.tutor-topic-picker-wrap {
+  position: relative;
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 0;
+}
+
+.tutor-topic-picker {
+  position: absolute;
+  z-index: 10;
+  bottom: calc(100% + 10px);
+  left: 0;
+  display: flex;
+  width: 220px;
+  max-height: 240px;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  box-shadow: 0 10px 24px rgba(63, 111, 145, .18);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.tutor-topic-picker::-webkit-scrollbar {
+  display: none;
+}
+
+.tutor-topic-option {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 10px;
+  color: var(--ink-muted);
+  background: transparent;
+  font-size: .78rem;
+  text-align: left;
+}
+
+.tutor-topic-option:hover {
+  color: var(--ink);
+  background: var(--accent-soft);
+}
+
+.tutor-topic-option-active {
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 800;
+}
+
+.tutor-composer-topic-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+@media (max-width: 640px) {
+  .tutor-composer-topic-button {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+.tutor-send-button {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  padding: 0;
+}
+
+.tutor-voice-button {
+  position: absolute;
+  right: 52px;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  padding: 0;
+  border: 1px solid var(--accent);
+  background: var(--border-subtle);
+  color: var(--accent);
+}
+
+/* Active: solid accent, no border, white icon (like the send button). */
+.tutor-voice-button:not(:disabled) {
+  border-color: transparent;
+  background: var(--accent);
+  color: #fff;
+}
+
+.tutor-voice-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.tutor-search-icon {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+.tutor-tabbar {
+  min-height: 72px;
+  border-top: 1px solid #d7e4ed;
+  background: #ffffff;
+  box-shadow: 0 -4px 14px rgba(63, 111, 145, .10);
+  z-index: 5;
+}
+
+.tutor-tab {
+  color: #75666b;
+  transition: color 160ms ease, transform 160ms ease;
+}
+
+.tutor-tab-active,
+.tutor-tab:hover {
+  color: #3f6f91;
+}
+
+.tutor-tab-icon {
+  width: 21px;
+  height: 21px;
+  display: block;
+}
+
+.tutor-message {
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: 0 10px 30px rgba(48, 39, 42, .05);
+}
+
+.tutor-message-assistant {
+  border-bottom-left-radius: 5px;
+}
+
+.tutor-message-student {
+  border-bottom-right-radius: 5px;
+  background: #e8f2f8 !important;
+  border-color: #d2e3ee !important;
+}
+
+.tutor-message-student.bg-red-700 {
+  background: #b91c1c !important;
+  border-color: #fca5a5 !important;
+}
+
+.tutor-chip {
+  border-radius: 999px;
+  border-color: var(--border-subtle);
+  background: var(--surface-raised);
+}
+
+/* Visible focus for the keyboard path (06_CROSS_CUTTING.md §3). */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .tutor-sidebar-open {
+    width: 58px;
+  }
+
+  .tutor-sidebar-open .tutor-sidebar-icon span,
+  .tutor-sidebar-open .tutor-sidebar-label {
+    display: none;
+  }
+}
+
+.pending-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 9999px;
+  background: var(--accent);
+  animation: tutor-pulse 1s ease-in-out infinite;
+}
+
+@keyframes tutor-pulse {
+  0%, 100% { opacity: .35; transform: scale(.85); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+/* Voice panel: slides open under the top of the main column. */
+.tutor-voice-panel {
+  height: 0;
+  overflow: hidden;
+  transition: height 240ms ease;
+}
+
+.tutor-voice-panel-open {
+  height: 180px;
+}
+
+.tutor-voice-panel-inner {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.tutor-voice-aura {
+  margin-top: 12px;
+  height: 168px;
+  max-width: 100%;
+  /* Feather the square canvas edge into the page background. */
+  -webkit-mask-image: radial-gradient(circle, #000 52%, transparent 70%);
+  mask-image: radial-gradient(circle, #000 52%, transparent 70%);
+}
+
+.tutor-voice-panel-close {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  padding: 4px 12px;
+  color: var(--accent);
+  background: var(--surface-raised);
+  font-size: .8rem;
+  font-weight: 700;
+}
+
+/* Voice mode: the text layers hide and the mic wave takes their place. */
+.tutor-composer-field-voice textarea,
+.tutor-composer-field-voice .tutor-composer-mirror {
+  visibility: hidden;
+}
+
+.tutor-composer-wave {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+
+/* Voice mode: the bar glides down (240ms, same as docking) and shrinks to a
+   pill holding only the wave and the stop button. Topic and send blur away on
+   the way; the stop button and wave come into focus near the end. */
+.tutor-composer-voice .tutor-composer-inner {
+  max-width: 320px;
+}
+
+.tutor-topic-picker-wrap,
+.tutor-send-button {
+  transition: opacity 200ms ease, filter 200ms ease;
+}
+
+.tutor-composer-voice .tutor-topic-picker-wrap,
+.tutor-composer-voice .tutor-send-button {
+  opacity: 0;
+  filter: blur(8px);
+  pointer-events: none;
+}
+
+.tutor-voice-button {
+  transition: right 240ms ease;
+}
+
+.tutor-composer-voice .tutor-voice-button {
+  right: 0;
+}
+
+.tutor-composer-voice .tutor-voice-icon,
+.tutor-composer-voice .tutor-composer-wave {
+  animation: tutor-voice-settle 240ms ease both;
+}
+
+/* Blurred while travelling, sharp only as it lands. */
+@keyframes tutor-voice-settle {
+  0% { opacity: 0; filter: blur(8px); }
+  55% { opacity: .4; filter: blur(8px); }
+  100% { opacity: 1; filter: blur(0); }
+}
+
+/* The aura slides down from the top on open and back up on close. */
+.tutor-voice-aura-wrap {
+  transform: translateY(-110%);
+  opacity: 0;
+  transition: transform 240ms ease, opacity 240ms ease;
+}
+
+.tutor-voice-aura-wrap-shown {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* Voice mode response area: centred reply text while the tutor "speaks". */
+.tutor-voice-response {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.tutor-voice-message-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+/* Separator between one spoken reply and the next. */
+.tutor-voice-divider {
+  margin: 28px 0;
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+}

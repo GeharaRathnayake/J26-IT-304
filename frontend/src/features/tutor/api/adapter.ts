@@ -1,0 +1,79 @@
+import { env } from '../config/env';
+import { FALLBACK_TOPICS } from '../config/topics';
+import { TutorError, mapStatusToKind } from './errors';
+import { parseHealth, parseModelInfo, parseTopics, parseTutorResponse } from './schemas';
+import type { HealthResponse, ModelInfo, TopicOption, TutorResponse, TutorState, HistoryTurn } from './types';
+import { createMockTransport, type MockFault } from './mockTransport';
+
+export interface TurnInput {
+  topic: string;
+  message: string;
+  history: HistoryTurn[];
+  state: TutorState | null;
+  profile?: null;
+}
+
+export interface TutorTransport {
+  sendTurn(input: TurnInput): Promise<TutorResponse>;
+  health(): Promise<HealthResponse>;
+  modelInfo(): Promise<ModelInfo>;
+  topics(): Promise<TopicOption[]>;
+}
+
+export type { MockFault };
+
+async function request<T>(url: string, init: RequestInit, parse: (value: unknown) => T): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(url, init);
+  } catch (cause) {
+    throw new TutorError('network', 'Tutor service could not be reached', { cause });
+  }
+  const text = await response.text();
+  let body: unknown = null;
+  try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+  if (!response.ok) {
+    const kind = mapStatusToKind(response.status);
+    throw new TutorError(kind, `Tutor service returned ${response.status}`, { status: response.status, detail: body });
+  }
+  return parse(body);
+}
+
+function liveTransport(mode: 'direct' | 'express'): TutorTransport {
+  const base = mode === 'direct' ? env.tutorUrl : env.expressBase;
+  return {
+    sendTurn: async (input) => {
+      const requestId = crypto.randomUUID();
+      const body = mode === 'direct'
+        ? { request_id: requestId, student_id: getStudentId(), session_id: getSessionId(), ...input, profile: null }
+        : { topic: input.topic, message: input.message };
+      return request(`${base}/tutor/message`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }, (data) => parseTutorResponse(data, mode === 'direct' ? requestId : undefined));
+    },
+    health: () => request(`${base}/health`, {}, parseHealth),
+    modelInfo: () => request(`${base}/model-info`, {}, parseModelInfo),
+    topics: () => request(`${base}/topics`, {}, parseTopics),
+  };
+}
+
+let sessionId: string | undefined;
+function getSessionId() { sessionId ??= `sess_${crypto.randomUUID().slice(0, 8)}`; return sessionId; }
+function getStudentId() {
+  const key = 'java-tutor.student-id';
+  const existing = localStorage.getItem(key);
+  if (existing) return existing;
+  const value = `stu_${crypto.randomUUID().slice(0, 8)}`;
+  localStorage.setItem(key, value);
+  return value;
+}
+
+export function createTransport(mode: typeof env.mode = env.mode): TutorTransport {
+  if (mode === 'mock') {
+    const mock = createMockTransport();
+    return { ...mock, sendTurn: async (input) => parseTutorResponse(await mock.sendTurn(input)) };
+  }
+  return liveTransport(mode);
+}
+
+export async function loadTopics(transport: TutorTransport): Promise<TopicOption[]> {
+  try { return await transport.topics(); } catch { return [...FALLBACK_TOPICS]; }
+}

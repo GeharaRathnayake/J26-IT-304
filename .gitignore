@@ -1,0 +1,50 @@
+# ---- Node / frontend ----
+node_modules/
+dist/
+dist-ssr/
+*.local
+coverage/
+
+# ---- Secrets ----
+.env
+.env.*
+!.env.example
+
+# ---- Python / backend ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---- Datasets and model artifacts (plan 17) ----
+data/raw/
+data/processed/
+backend/models/
+*.pt
+*.bin
+*.safetensors
+*.joblib
+*.pkl
+*.h5
+*.csv
+*.parquet
+!reports/**/*.csv
+
+# ---- Notebooks ----
+.ipynb_checkpoints/
+
+# ---- Editors / OS ----
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+
+# ---- Tooling leftovers ----
+.playwright-mcp/
