@@ -178,13 +178,22 @@ function VoiceResponse({ state }: { state: ReturnType<typeof useEpisode>['state'
     if (el && following.current) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [shown, latest?.id, state.phase]);
 
-  return <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto px-4 pb-28 pt-6" aria-live="polite" aria-label="Tutor response">
+  // Assistive tech: the text grows every 250ms while it is revealed, which a live
+  // region would re-announce on every tick. So the scroller is NOT a live region,
+  // the reply being revealed is aria-hidden, and a separate polite region says
+  // "thinking" while waiting and then reads the finished reply exactly once.
+  const revealing = Boolean(latest) && shown < total;
+  const finishedNewReply = latest && !revealing && latest.id !== startId.current ? latest : null;
+  return <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto px-4 pb-28 pt-6" aria-label="Tutor response">
+    <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+      {state.phase === 'awaiting_tutor' ? 'The tutor is thinking.' : finishedNewReply && <Markdown rehypePlugins={[rehypeHighlight]} key={finishedNewReply.id}>{finishedNewReply.text}</Markdown>}
+    </div>
     <div className="tutor-voice-response mx-auto max-w-2xl">
       {replies.map((reply, index) => <Fragment key={reply.id}>
         {index > 0 && <hr className="tutor-voice-divider" />}
-        <div className="text-lg leading-relaxed"><Markdown rehypePlugins={[rehypeHighlight]}>{reply.id === latest?.id ? words.slice(0, shown).join('') : reply.text}</Markdown></div>
+        <div className="text-lg leading-relaxed" aria-hidden={reply.id === latest?.id && revealing ? true : undefined}><Markdown rehypePlugins={[rehypeHighlight]}>{reply.id === latest?.id ? words.slice(0, shown).join('') : reply.text}</Markdown></div>
       </Fragment>)}
-      {state.phase === 'awaiting_tutor' && <>{replies.length > 0 && <hr className="tutor-voice-divider" />}<PendingIndicator /></>}
+      {state.phase === 'awaiting_tutor' && <div aria-hidden="true">{replies.length > 0 && <hr className="tutor-voice-divider" />}<PendingIndicator /></div>}
     </div>
   </div>;
 }
