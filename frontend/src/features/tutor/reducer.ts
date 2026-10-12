@@ -30,7 +30,7 @@ export function episodeReducer(state: EpisodeUI, action: EpisodeAction): Episode
       const history = res.strategy ? [...state.history, { role: 'tutor' as const, text: res.response, strategy: res.strategy, ts: new Date().toISOString() }] : [...state.history, { role: 'tutor' as const, text: res.response, ts: new Date().toISOString() }];
       return { ...state, phase: phaseFromResponse(res), messages: [...state.messages, tutor], history, serverState: res.updated_state, lastResponse: res, episodeLog: res.episode_log, error: null, pendingText: null };
     }
-    case 'SEND_FAILED': return { ...state, phase: state.serverState?.awaiting_cycle_confirmation ? 'awaiting_cycle_decision' : state.serverState ? 'awaiting_student' : 'idle', error: action.error, pendingText: null, messages: state.messages.map((m) => m.id === state.messages.at(-1)?.id && m.role === 'student' ? { ...m, failed: true } : m) };
+    case 'SEND_FAILED': return { ...state, phase: state.serverState?.awaiting_cycle_confirmation ? 'awaiting_cycle_decision' : state.serverState || state.topic ? 'awaiting_student' : 'idle', error: action.error, pendingText: null, messages: state.messages.map((m) => m.id === state.messages.at(-1)?.id && m.role === 'student' ? { ...m, failed: true } : m) };
     case 'RETRY_CLEARED': return { ...state, error: null };
     case 'RESET': return newEpisode();
   }

@@ -39,4 +39,14 @@ describe('episode state machine', () => {
     expect(second.error).toBe(err);
     expect(second.messages.filter((m) => m.failed).map((m) => m.id)).toEqual(['m1', 'm2']);
   });
+  it('returns to awaiting_student, not idle, when the first send on a topic fails', () => {
+    // newEpisode(topic) starts in awaiting_student; a failed first send must not
+    // demote it to idle just because no server state exists yet (review F8.1).
+    const started = episodeReducer(newEpisode('loops'), { type: 'SEND_STARTED', id: 'm1', message: 'help' });
+    const failed = episodeReducer(started, { type: 'SEND_FAILED', error: new Error('503') as never });
+    expect(failed.phase).toBe('awaiting_student');
+    // With no topic at all, idle is still right.
+    const noTopic = episodeReducer(episodeReducer(newEpisode(), { type: 'SEND_STARTED', id: 'm2', message: 'help' }), { type: 'SEND_FAILED', error: new Error('503') as never });
+    expect(noTopic.phase).toBe('idle');
+  });
 });
