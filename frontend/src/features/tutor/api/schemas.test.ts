@@ -111,7 +111,11 @@ describe('malformed payloads', () => {
 
 describe('topic list drift guard (10_DECISIONS.md Q1)', () => {
   it('frontend fallback list matches the service list exactly', () => {
-    // The service owns the list (app/topics.py). If this fails, the static copy
+    // NOTE: both sides of this comparison live in the frontend, so until
+  // app/topics.py exists this is a self-consistency check, not a check against
+  // the service. It only guards against drift if fixtures/topics.json is kept
+  // as the service's mirror (guide §10, item 14).
+  // The service owns the list (app/topics.py). If this fails, the static copy
     // in config/topics.ts has drifted and requests for the drifted topic will
     // 422 at runtime.
     expect(FALLBACK_TOPICS).toEqual(topicsFixture);
