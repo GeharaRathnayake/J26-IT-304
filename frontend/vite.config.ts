@@ -15,7 +15,11 @@ export default defineConfig({
     port: 5173,
   },
   test: {
+    // Node environment: there is no DOM, so component and hook tests cannot render.
+    // Keep decisions in pure functions (see features/tutor/episodeRules.ts) so they
+    // are testable here. To test components, add jsdom + @testing-library/react
+    // and widen `include` to *.test.tsx; a .tsx test would fail on first render today.
     environment: 'node',
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    include: ['src/**/*.test.ts'],
   },
 });
