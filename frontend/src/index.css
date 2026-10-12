@@ -84,27 +84,6 @@ button:not(:disabled):hover {
   transform: translateY(-1px);
 }
 
-.tutor-header {
-  min-height: 72px;
-  box-shadow: 0 3px 12px rgba(217, 108, 138, .10);
-  z-index: 2;
-}
-
-.tutor-new-topic {
-  width: 44px;
-  height: 44px;
-  border: 2px solid var(--accent);
-  border-radius: 999px;
-  color: var(--accent);
-  background: transparent;
-  font-size: 26px;
-  line-height: 1;
-}
-
-.tutor-new-topic:hover {
-  background: var(--accent-soft);
-}
-
 .tutor-empty-star {
   color: var(--accent);
   font-size: 34px;
@@ -299,15 +278,6 @@ button:not(:disabled):hover {
   flex-direction: column;
   gap: 4px;
   margin-top: 8px;
-}
-
-.tutor-header > .tutor-new-topic {
-  display: none;
-}
-
-.tutor-header > label,
-.tutor-header > button[aria-pressed] {
-  display: none;
 }
 
 .tutor-past-chats {
@@ -655,30 +625,6 @@ button:not(:disabled):hover {
   display: block;
 }
 
-.tutor-tabbar {
-  min-height: 72px;
-  border-top: 1px solid #d7e4ed;
-  background: #ffffff;
-  box-shadow: 0 -4px 14px rgba(63, 111, 145, .10);
-  z-index: 5;
-}
-
-.tutor-tab {
-  color: #75666b;
-  transition: color 160ms ease, transform 160ms ease;
-}
-
-.tutor-tab-active,
-.tutor-tab:hover {
-  color: #3f6f91;
-}
-
-.tutor-tab-icon {
-  width: 21px;
-  height: 21px;
-  display: block;
-}
-
 .tutor-message {
   border-radius: 20px;
   padding: 16px;
@@ -695,9 +641,12 @@ button:not(:disabled):hover {
   border-color: #d2e3ee !important;
 }
 
-.tutor-message-student.bg-red-700 {
-  background: #b91c1c !important;
+/* Failed send: the light error treatment used by the other error surfaces
+   (red-50 / red-900), not a dark fill. #7f1d1d on #fef2f2 measures 9.16:1 (WCAG AA needs 4.5:1). */
+.tutor-message-student.tutor-message-failed {
+  background: #fef2f2 !important;
   border-color: #fca5a5 !important;
+  color: #7f1d1d;
 }
 
 .tutor-chip {

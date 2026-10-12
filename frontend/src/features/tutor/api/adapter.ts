@@ -22,11 +22,29 @@ export interface TutorTransport {
 
 export type { MockFault };
 
-async function request<T>(url: string, init: RequestInit, parse: (value: unknown) => T): Promise<T> {
+/** Client-side request budgets. Without these a socket that accepts and never
+ * answers leaves the promise pending forever: `loadTopics` only catches
+ * *rejections*, so a hang used to wedge the send latch permanently.
+ *
+ * These are NOT the 3s NFR latency budget. That figure is what we measure a turn
+ * against and report; enforcing it as a cutoff would fail legitimate turns and
+ * corrupt the latency evidence. */
+export const METADATA_TIMEOUT_MS = 5_000;   // /topics, /health, /model-info — all have fallbacks, so fail fast
+export const TURN_TIMEOUT_MS = 30_000;      // /tutor/message — classify + LLM generation
+
+function isTimeout(cause: unknown): boolean {
+  return cause instanceof DOMException && cause.name === 'TimeoutError';
+}
+
+async function request<T>(url: string, init: RequestInit, parse: (value: unknown) => T, timeoutMs: number = METADATA_TIMEOUT_MS, onTimeout: 'network' | 'llm_timeout' = 'network'): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(url, init);
+    response = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
   } catch (cause) {
+    // A client-side abort is recorded distinctly in `detail`: it shares a kind
+    // with a server 504, but a developer reading the research panel must be able
+    // to tell "we gave up" from "the service said it timed out".
+    if (isTimeout(cause)) throw new TutorError(onTimeout, `Tutor service did not answer within ${timeoutMs}ms`, { detail: { client_timeout: true, timeout_ms: timeoutMs, url }, cause });
     throw new TutorError('network', 'Tutor service could not be reached', { cause });
   }
   const text = await response.text();
@@ -47,7 +65,7 @@ function liveTransport(mode: 'direct' | 'express'): TutorTransport {
       const body = mode === 'direct'
         ? { request_id: requestId, student_id: getStudentId(), session_id: getSessionId(), ...input, profile: null }
         : { topic: input.topic, message: input.message };
-      return request(`${base}/tutor/message`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }, (data) => parseTutorResponse(data, mode === 'direct' ? requestId : undefined));
+      return request(`${base}/tutor/message`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }, (data) => parseTutorResponse(data, mode === 'direct' ? requestId : undefined), TURN_TIMEOUT_MS, 'llm_timeout');
     },
     health: () => request(`${base}/health`, {}, parseHealth),
     modelInfo: () => request(`${base}/model-info`, {}, parseModelInfo),

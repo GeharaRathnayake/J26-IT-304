@@ -26,4 +26,63 @@ describe('episode state machine', () => {
     const failed = episodeReducer(started, { type: 'SEND_FAILED', error: new Error('network') as never });
     expect(failed.messages.at(-1)?.failed).toBe(true);
   });
+  it('clears the error when a resend starts, so an identical repeated failure re-triggers the composer restore', () => {
+    // The composer restores the failed text from an error-gated prop. That only
+    // fires again for the same text because SEND_STARTED nulls the error between
+    // two failures; this pins that dependency (review finding F3 was not a bug).
+    const err = new Error('503') as never;
+    const first = episodeReducer(episodeReducer(newEpisode('loops'), { type: 'SEND_STARTED', id: 'm1', message: 'hello' }), { type: 'SEND_FAILED', error: err });
+    expect(first.error).toBe(err);
+    const resent = episodeReducer(first, { type: 'SEND_STARTED', id: 'm2', message: 'hello' });
+    expect(resent.error).toBeNull();
+    const second = episodeReducer(resent, { type: 'SEND_FAILED', error: err });
+    expect(second.error).toBe(err);
+    expect(second.messages.filter((m) => m.failed).map((m) => m.id)).toEqual(['m1', 'm2']);
+  });
+  it('returns to awaiting_student, not idle, when the first send on a topic fails', () => {
+    // newEpisode(topic) starts in awaiting_student; a failed first send must not
+    // demote it to idle just because no server state exists yet (review F8.1).
+    const started = episodeReducer(newEpisode('loops'), { type: 'SEND_STARTED', id: 'm1', message: 'help' });
+    const failed = episodeReducer(started, { type: 'SEND_FAILED', error: new Error('503') as never });
+    expect(failed.phase).toBe('awaiting_student');
+    // With no topic at all, idle is still right.
+    const noTopic = episodeReducer(episodeReducer(newEpisode(), { type: 'SEND_STARTED', id: 'm2', message: 'help' }), { type: 'SEND_FAILED', error: new Error('503') as never });
+    expect(noTopic.phase).toBe('idle');
+  });
+});
+
+describe('a superseded response corrupts the fresh episode (point 5)', () => {
+  // Reproduction of the defect the generation guard prevents. The sidebar's
+  // "New chat" (TutorFeatureApp.tsx:47, onNewTopic -> episode.reset()) has no
+  // phase guard, so it fires during `awaiting_tutor`. These two tests show the
+  // damage the reducer does if the in-flight response is still dispatched, and
+  // are the reason useEpisode captures a generation token and drops stale ones.
+  function inFlightThenNewChat() {
+    const sent = episodeReducer(newEpisode('loops'), { type: 'SEND_STARTED', id: 'm1', message: 'what is a loop' });
+    expect(sent.phase).toBe('awaiting_tutor');
+    return episodeReducer(sent, { type: 'RESET' });   // student clicks "New chat"
+  }
+
+  it('REPRO: dispatching the late response leaves a tutor reply with no question above it', () => {
+    const fresh = inFlightThenNewChat();
+    expect(fresh.messages).toEqual([]);
+
+    const corrupted = episodeReducer(fresh, { type: 'SEND_SUCCEEDED', response: response(), tutorId: 't1' });
+
+    // The damage: a tutor message alone in a brand-new episode, carrying the
+    // previous episode's server state underneath it.
+    expect(corrupted.messages).toHaveLength(1);
+    expect(corrupted.messages[0]?.role).toBe('tutor');
+    expect(corrupted.serverState?.episode_id).toBe(state.episode_id);
+    expect(corrupted.topic).toBeNull();
+  });
+
+  it('FIX: dropping the stale response leaves the fresh episode untouched', () => {
+    const fresh = inFlightThenNewChat();
+    // useEpisode returns before dispatching when the guard reports staleness,
+    // so the reducer never sees the action at all.
+    expect(fresh.messages).toEqual([]);
+    expect(fresh.serverState).toBeNull();
+    expect(fresh.phase).toBe('idle');
+  });
 });

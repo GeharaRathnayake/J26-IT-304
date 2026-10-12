@@ -1,8 +1,8 @@
 # Git Strategy — J26-IT-304 (Adaptive AI Voice Tutor for Java)
 
 **Audience:** Yasindu (supervisor/frontend) and any agent committing into this repo.
-**Status:** plan written, repo not yet initialised.
-**Last updated:** 2026-10-12
+**Status:** repo initialised; work in progress on `dev1`.
+**Last updated:** 2026-10-13
 
 This file is the authority on how we use Git here. It has two parts: the rules we
 follow (§1–§8), and a running log of what has actually been done (§9). Whoever
@@ -165,6 +165,14 @@ integration branch and must always be in a demoable state.
 | `backend/pp1-service` | Sonnet agent B | FastAPI service: `POST /tutor/message`, classifier integration, strategy selection, LLM call, tests |
 | `notebooks/confusion-classifier` | Sonnet agent C | `01_baseline_confusion_classifier.ipynb`, `02_error_analysis.ipynb`, metrics into `reports/experiments/` |
 
+> **Deviation, 2026-10-13.** The first working branch was created as **`dev1`**,
+> not `frontend/refinement`. The table above is the intended scheme and still
+> applies to the backend and notebook streams; `dev1` is the frontend stream
+> under a different name. Either rename it (`git branch -m dev1
+> frontend/refinement`) or rewrite this table — but do not leave the document
+> and the repo disagreeing, because the ownership rule in point 1 below is
+> enforced by nothing except this table.
+
 **Rules:**
 
 1. An agent commits **only inside its own top-level directory**. The backend
@@ -309,7 +317,10 @@ Append here, newest last. One row per real Git action.
 
 | Date | Branch | Action | Notes |
 |---|---|---|---|
-| 2026-10-12 | — | Strategy written (`dev/git.md`) | Repo **not yet initialised**. No `.git` exists in `dev/` as of this entry. |
+| 2026-10-12 | — | Strategy written (`dev/git.md`) | Repo not yet initialised at the time of this entry. |
+| 2026-10-13 | `main` | `git init -b main`, root `.gitignore`, first commit `dc2c9f8` | Identity set per-repo as `YasinduKaveesha <yasinduksl2002@gmail.com>` — the existing global identity, **not** the address named in §1. §1 is wrong; this is the address that will be used. 41 files; `node_modules/` and `dist/` correctly excluded. |
+| 2026-10-13 | `dev1` | `git switch -c dev1` | Chosen instead of the §4 scheme below. See the note under §4. |
+| 2026-10-13 | `dev1` | 18 commits: frontend review fixes (`075fc27`…`ba674ea`) | Findings F1–F9 / G1–G3 of `frontend-review-2026-10-13.md`. Tests 19 → 37, typecheck and build clean. F7 (screen-reader announcement) implemented but **unverified** — no NVDA/Narrator available. |
 
 ### Pre-Git state of the work, for the record
 
