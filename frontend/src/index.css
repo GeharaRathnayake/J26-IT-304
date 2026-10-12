@@ -695,9 +695,12 @@ button:not(:disabled):hover {
   border-color: #d2e3ee !important;
 }
 
-.tutor-message-student.bg-red-700 {
-  background: #b91c1c !important;
+/* Failed send: the light error treatment used by the other error surfaces
+   (red-50 / red-900), not a dark fill. #7f1d1d on #fef2f2 measures 9.16:1 (WCAG AA needs 4.5:1). */
+.tutor-message-student.tutor-message-failed {
+  background: #fef2f2 !important;
   border-color: #fca5a5 !important;
+  color: #7f1d1d;
 }
 
 .tutor-chip {
