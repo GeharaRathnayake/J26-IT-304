@@ -2,7 +2,8 @@
 // unit tested in the node test environment (no DOM, no React rendering).
 
 import type { TurnInput, TutorTransport } from './api/adapter';
-import type { HealthResponse } from './api/types';
+import type { HealthResponse, TopicOption } from './api/types';
+import { inferTopic } from './inferTopic';
 import type { EpisodeUI } from './reducer';
 
 /** What one turn puts on the wire.
@@ -69,4 +70,26 @@ export async function probeHealth(transport: Pick<TutorTransport, 'health'>): Pr
   } catch {
     return { status: 'unreachable', health: null };
   }
+}
+
+// Slug used when the student chats without choosing a topic. NOTE: the tutor
+// service validates topic slugs (422 for unknown ones), so it must accept this
+// value for no-topic chats to work against the real backend.
+export const GENERAL_TOPIC = 'general';
+
+/** The topic a turn is sent under: an explicit one, else the episode's, else one
+ * named in the message, else a general chat. `topics` is null until `GET /topics`
+ * has answered; in that window the choice waits for it rather than inferring
+ * from an empty list and silently falling back to general (review F8.4). */
+export async function resolveTurnTopic(args: {
+  explicit?: string | undefined;
+  current: string | null;
+  message: string;
+  topics: TopicOption[] | null;
+  topicsReady: Promise<TopicOption[]>;
+}): Promise<string> {
+  if (args.explicit) return args.explicit;
+  if (args.current) return args.current;
+  const list = args.topics ?? (await args.topicsReady);
+  return inferTopic(args.message, list)?.id ?? GENERAL_TOPIC;
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createSendLatch, probeHealth, runExclusive, turnInputFor } from './episodeRules';
+import { createSendLatch, GENERAL_TOPIC, probeHealth, resolveTurnTopic, runExclusive, turnInputFor } from './episodeRules';
+import { FALLBACK_TOPICS } from './config/topics';
 import { episodeReducer, newEpisode } from './reducer';
 import type { TutorState } from './api/types';
 
@@ -74,5 +75,31 @@ describe('probeHealth (F6)', () => {
   it('reports unreachable (not "nothing wrong") when /health rejects', async () => {
     const result = await probeHealth({ health: async () => { throw new Error('network'); } });
     expect(result).toEqual({ status: 'unreachable', health: null });
+  });
+});
+
+describe('resolveTurnTopic (F8.4)', () => {
+  const list = [...FALLBACK_TOPICS];
+  const never = new Promise<typeof list>(() => undefined);
+
+  it('prefers an explicit topic, then the episode topic, without waiting for topics', async () => {
+    expect(await resolveTurnTopic({ explicit: 'arrays', current: 'loops', message: 'x', topics: null, topicsReady: never })).toBe('arrays');
+    expect(await resolveTurnTopic({ current: 'loops', message: 'x', topics: null, topicsReady: never })).toBe('loops');
+  });
+
+  it('waits for GET /topics before inferring, instead of silently sending general', async () => {
+    let resolveTopics!: (value: typeof list) => void;
+    const topicsReady = new Promise<typeof list>((resolve) => { resolveTopics = resolve; });
+    let settled = false;
+    const pending = resolveTurnTopic({ current: null, message: 'explain loops', topics: null, topicsReady }).then((id) => { settled = true; return id; });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    resolveTopics(list);
+    expect(await pending).toBe('loops');
+  });
+
+  it('infers from an already-loaded list, and falls back to general when nothing is named', async () => {
+    expect(await resolveTurnTopic({ current: null, message: 'tell me about arrays', topics: list, topicsReady: never })).toBe('arrays');
+    expect(await resolveTurnTopic({ current: null, message: 'hello', topics: list, topicsReady: never })).toBe(GENERAL_TOPIC);
   });
 });

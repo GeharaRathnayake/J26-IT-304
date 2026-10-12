@@ -4,17 +4,17 @@ import { TutorError } from './api/errors';
 import { getMockFault, setMockFault, type MockFault } from './api/mockTransport';
 import type { TopicOption } from './api/types';
 import { episodeReducer, newEpisode } from './reducer';
-import { createSendLatch, probeHealth, runExclusive, turnInputFor, type HealthStatus } from './episodeRules';
+import { createSendLatch, GENERAL_TOPIC, probeHealth, resolveTurnTopic, runExclusive, turnInputFor, type HealthStatus } from './episodeRules';
 
-// Slug used when the student chats without choosing a topic. NOTE: the tutor
-// service validates topic slugs (422 for unknown ones), so it must accept this
-// value for no-topic chats to work against the real backend.
-export const GENERAL_TOPIC = 'general';
+export { GENERAL_TOPIC };
 
 export function useEpisode() {
   const transport = useMemo(() => createTransport(), []);
   const [state, dispatch] = useReducer(episodeReducer, null, () => newEpisode());
   const [topics, setTopics] = useState<TopicOption[]>([]);
+  // The send path needs the loaded list synchronously and a way to wait for it.
+  const loadedTopics = useRef<TopicOption[] | null>(null);
+  const topicsReady = useRef<Promise<TopicOption[]>>(Promise.resolve([]));
   const [health, setHealth] = useState<Awaited<ReturnType<TutorTransport['health']>> | null>(null);
   const [healthStatus, setHealthStatus] = useState<HealthStatus>('checking');
   const [fault, setFaultState] = useState<MockFault>(getMockFault());
@@ -22,7 +22,10 @@ export function useEpisode() {
     setHealthStatus('checking');
     void probeHealth(transport).then((result) => { setHealth(result.health); setHealthStatus(result.status); });
   }, [transport]);
-  useEffect(() => { void loadTopics(transport).then(setTopics); checkHealth(); }, [transport, checkHealth]);
+  useEffect(() => {
+    topicsReady.current = loadTopics(transport).then((list) => { loadedTopics.current = list; setTopics(list); return list; });
+    checkHealth();
+  }, [transport, checkHealth]);
   // Checked and set synchronously, so two sends raised from the same render
   // (which both read the same captured `state.phase`) cannot both go out.
   const sendLatch = useRef(createSendLatch());
@@ -32,7 +35,7 @@ export function useEpisode() {
     // general chat. Switching topic starts a fresh episode.
     if (!message.trim() || state.phase === 'awaiting_tutor' || state.phase === 'closed') return;
     await runExclusive(sendLatch.current, async () => {
-      const topic = options?.topic ?? state.topic ?? GENERAL_TOPIC;
+      const topic = await resolveTurnTopic({ explicit: options?.topic, current: state.topic, message, topics: loadedTopics.current, topicsReady: topicsReady.current });
       if (topic !== state.topic) dispatch({ type: 'TOPIC_CHANGED', topic });
       const id = crypto.randomUUID();
       dispatch({ type: 'SEND_STARTED', message, id, voice: options?.voice });

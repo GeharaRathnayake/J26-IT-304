@@ -222,10 +222,12 @@ export function SearchComposer({ topics, topic, onTopicChange, onEngage, onDisen
     const previous = syncedLabel.current;
     syncedLabel.current = topicLabel;
     if (previous === topicLabel || topicLabel === '') return;
-    if (skipTopicSync.current) { skipTopicSync.current = false; return; }
+    if (skipTopicSync.current) return; // the topic came from the message just sent
     setDraft((current) => addTopic(current, topicLabel).text);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topicLabel]);
+  // Declared after the sync effect so it runs second in the same commit.
+  useEffect(() => { skipTopicSync.current = false; }, [topic]);
 
   const submit = () => {
     const text = draft.trim();
@@ -236,7 +238,10 @@ export function SearchComposer({ topics, topic, onTopicChange, onEngage, onDisen
     setDraft('');
     setAutoH(0);
     setDynamicMode(false);
-    if (inferred) skipTopicSync.current = true; // the topic came from the message itself
+    // With no topic picked, the send itself decides the topic (named in the text,
+    // or only known once GET /topics answers); don't write its label back into
+    // the now-empty draft.
+    if (!topic) skipTopicSync.current = true;
     void onSend(text, inferred ? { topic: inferred.id } : undefined);
   };
 
