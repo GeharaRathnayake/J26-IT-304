@@ -218,6 +218,16 @@ export function SearchComposer({ topics, topic, onTopicChange, onEngage, onDisen
   // the draft carries its label. Clearing the topic leaves typed labels as text.
   const syncedLabel = useRef(topicLabel);
   const skipTopicSync = useRef(false);
+  // The textarea is disabled while the tutor replies (and in voice mode). Browsers
+  // drop focus when a field is disabled (a blur may or may not fire, so a blur on
+  // a disabled field does not count as the student leaving). Give focus back when
+  // it re-enables, unless the student has since focused something else.
+  const hadFocus = useRef(false);
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea || disabled || voiceActive || !hadFocus.current) return;
+    if (document.activeElement === document.body || document.activeElement === null) textarea.focus();
+  }, [disabled, voiceActive]);
   useEffect(() => {
     const previous = syncedLabel.current;
     syncedLabel.current = topicLabel;
@@ -268,7 +278,7 @@ export function SearchComposer({ topics, topic, onTopicChange, onEngage, onDisen
               onTopicChange(topics.find((item) => item.label === remaining?.label)?.id ?? '');
             }
             setDraft(next);
-          }} onFocus={() => { onEngage(); }} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); } }} onScroll={(event) => { if (mirrorRef.current) mirrorRef.current.scrollTop = event.currentTarget.scrollTop; }} onBlur={() => { onDisengage(); }} disabled={disabled || voiceActive} placeholder={disabled ? 'Tutor is responding…' : 'Type your response…'} aria-label="Your message" style={{ height: textHeight, lineHeight: `${effectiveLineHeight}px`, padding: `0 ${singleLine ? IDLE_RIGHT_RESERVE : MULTILINE_RIGHT_RESERVE}px 0 ${singleLine ? IDLE_LEFT_RESERVE : MULTILINE_LEFT_RESERVE}px`, fontSize: compact ? 15 : undefined, overflowY: atCap ? 'auto' : 'hidden' }} className={`resize-none tutor-composer-input-ghost placeholder:text-ink-faint disabled:opacity-50 ${compact ? 'tutor-composer-input-compact' : ''}`} />
+          }} onFocus={() => { hadFocus.current = true; onEngage(); }} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); } }} onScroll={(event) => { if (mirrorRef.current) mirrorRef.current.scrollTop = event.currentTarget.scrollTop; }} onBlur={(event) => { if (!event.currentTarget.disabled) hadFocus.current = false; onDisengage(); }} disabled={disabled || voiceActive} placeholder={disabled ? 'Tutor is responding…' : 'Type your response…'} aria-label="Your message" style={{ height: textHeight, lineHeight: `${effectiveLineHeight}px`, padding: `0 ${singleLine ? IDLE_RIGHT_RESERVE : MULTILINE_RIGHT_RESERVE}px 0 ${singleLine ? IDLE_LEFT_RESERVE : MULTILINE_LEFT_RESERVE}px`, fontSize: compact ? 15 : undefined, overflowY: atCap ? 'auto' : 'hidden' }} className={`resize-none tutor-composer-input-ghost placeholder:text-ink-faint disabled:opacity-50 ${compact ? 'tutor-composer-input-compact' : ''}`} />
         <div ref={mirrorRef} aria-hidden="true" className={`tutor-composer-mirror ${disabled ? 'tutor-composer-mirror-disabled' : ''}`} style={{ height: textHeight, lineHeight: `${effectiveLineHeight}px`, padding: `0 ${singleLine ? IDLE_RIGHT_RESERVE : MULTILINE_RIGHT_RESERVE}px 0 ${singleLine ? IDLE_LEFT_RESERVE : MULTILINE_LEFT_RESERVE}px`, fontSize: compact ? 15 : undefined, overflowY: 'hidden' }}>{mirrorContent()}{'\u200b'}</div>
         {voiceActive && <div className="tutor-composer-wave" style={{ left: VOICE_PILL_LEFT, right: VOICE_BUTTON_WIDTH + CONTROL_GAP }}><Suspense fallback={null}><VoiceWave track={voiceTrack} /></Suspense></div>}
         </div>
