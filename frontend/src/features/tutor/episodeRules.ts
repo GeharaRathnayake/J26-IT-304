@@ -78,18 +78,44 @@ export async function probeHealth(transport: Pick<TutorTransport, 'health'>): Pr
 export const GENERAL_TOPIC = 'general';
 
 /** The topic a turn is sent under: an explicit one, else the episode's, else one
- * named in the message, else a general chat. `topics` is null until `GET /topics`
- * has answered; in that window the choice waits for it rather than inferring
- * from an empty list and silently falling back to general (review F8.4). */
-export async function resolveTurnTopic(args: {
+ * named in the message, else a general chat.
+ *
+ * SYNCHRONOUS BY DESIGN. An earlier version awaited `GET /topics` here so it
+ * would not infer from an empty list. That await sat inside the send latch and
+ * before `SEND_STARTED`, which meant a slow or wedged `/topics` left the student
+ * with no bubble and, if the fetch never settled, permanently wedged the latch.
+ * `topics` is now seeded with `FALLBACK_TOPICS` and is never empty, so there is
+ * nothing to wait for and the whole failure mode is gone. Keep this synchronous:
+ * anything awaited here delays the student's first feedback. */
+export function resolveTurnTopic(args: {
   explicit?: string | undefined;
   current: string | null;
   message: string;
-  topics: TopicOption[] | null;
-  topicsReady: Promise<TopicOption[]>;
-}): Promise<string> {
+  topics: TopicOption[];
+}): string {
   if (args.explicit) return args.explicit;
   if (args.current) return args.current;
-  const list = args.topics ?? (await args.topicsReady);
-  return inferTopic(args.message, list)?.id ?? GENERAL_TOPIC;
+  return inferTopic(args.message, args.topics)?.id ?? GENERAL_TOPIC;
+}
+
+/** Tracks which episode is current, so a response that arrives after the episode
+ * was replaced (topic change, or "New chat" clicked mid-reply) is dropped rather
+ * than appended to the fresh one. Lives here, not in the reducer, because the
+ * reducer must stay a pure function of the action it is given; the staleness
+ * question is "is this response still wanted", which only the caller can answer. */
+export interface GenerationGuard {
+  /** Call when the episode is replaced. Invalidates every in-flight response. */
+  bump(): void;
+  /** Token for the send about to go out. Capture AFTER any episode reset. */
+  current(): number;
+  isStale(captured: number): boolean;
+}
+
+export function createGenerationGuard(): GenerationGuard {
+  let generation = 0;
+  return {
+    bump() { generation += 1; },
+    current() { return generation; },
+    isStale(captured) { return generation !== captured; },
+  };
 }

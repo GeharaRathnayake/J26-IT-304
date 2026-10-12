@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createSendLatch, GENERAL_TOPIC, probeHealth, resolveTurnTopic, runExclusive, turnInputFor } from './episodeRules';
+import { createGenerationGuard, createSendLatch, GENERAL_TOPIC, probeHealth, resolveTurnTopic, runExclusive, turnInputFor } from './episodeRules';
 import { FALLBACK_TOPICS } from './config/topics';
 import { episodeReducer, newEpisode } from './reducer';
 import type { TutorState } from './api/types';
@@ -78,28 +78,52 @@ describe('probeHealth (F6)', () => {
   });
 });
 
-describe('resolveTurnTopic (F8.4)', () => {
+describe('resolveTurnTopic: synchronous, never waits (F8.4 regression)', () => {
   const list = [...FALLBACK_TOPICS];
-  const never = new Promise<typeof list>(() => undefined);
 
-  it('prefers an explicit topic, then the episode topic, without waiting for topics', async () => {
-    expect(await resolveTurnTopic({ explicit: 'arrays', current: 'loops', message: 'x', topics: null, topicsReady: never })).toBe('arrays');
-    expect(await resolveTurnTopic({ current: 'loops', message: 'x', topics: null, topicsReady: never })).toBe('loops');
+  it('prefers an explicit topic, then the episode topic', () => {
+    expect(resolveTurnTopic({ explicit: 'arrays', current: 'loops', message: 'x', topics: list })).toBe('arrays');
+    expect(resolveTurnTopic({ current: 'loops', message: 'x', topics: list })).toBe('loops');
   });
 
-  it('waits for GET /topics before inferring, instead of silently sending general', async () => {
-    let resolveTopics!: (value: typeof list) => void;
-    const topicsReady = new Promise<typeof list>((resolve) => { resolveTopics = resolve; });
-    let settled = false;
-    const pending = resolveTurnTopic({ current: null, message: 'explain loops', topics: null, topicsReady }).then((id) => { settled = true; return id; });
-    await Promise.resolve();
-    expect(settled).toBe(false);
-    resolveTopics(list);
-    expect(await pending).toBe('loops');
+  it('infers from the seeded list, and falls back to general when nothing is named', () => {
+    expect(resolveTurnTopic({ current: null, message: 'tell me about arrays', topics: list })).toBe('arrays');
+    expect(resolveTurnTopic({ current: null, message: 'hello', topics: list })).toBe(GENERAL_TOPIC);
   });
 
-  it('infers from an already-loaded list, and falls back to general when nothing is named', async () => {
-    expect(await resolveTurnTopic({ current: null, message: 'tell me about arrays', topics: list, topicsReady: never })).toBe('arrays');
-    expect(await resolveTurnTopic({ current: null, message: 'hello', topics: list, topicsReady: never })).toBe(GENERAL_TOPIC);
+  // The original defect: topics started as [] and the resolver awaited GET /topics
+  // to avoid inferring from an empty list. Seeding removes the need to wait, so
+  // this must stay a plain function. A Promise return would reintroduce the
+  // dead-air and latch-wedge bugs.
+  it('returns a string, not a promise, so no send can be delayed by it', () => {
+    const result: unknown = resolveTurnTopic({ current: null, message: 'explain loops', topics: list });
+    expect(typeof result).toBe('string');
+    expect(result).not.toBeInstanceOf(Promise);
+  });
+});
+
+describe('generation guard: superseded responses (point 5)', () => {
+  it('treats a captured token as current until the episode is replaced', () => {
+    const guard = createGenerationGuard();
+    const token = guard.current();
+    expect(guard.isStale(token)).toBe(false);
+    guard.bump();
+    expect(guard.isStale(token)).toBe(true);
+  });
+
+  it('keeps a token captured after a bump valid, so a send that changes topic is not its own victim', () => {
+    const guard = createGenerationGuard();
+    guard.bump();                       // send resolves a new topic -> TOPIC_CHANGED
+    const token = guard.current();      // captured after, as useEpisode does
+    expect(guard.isStale(token)).toBe(false);
+  });
+
+  it('invalidates every in-flight send once, not per listener', () => {
+    const guard = createGenerationGuard();
+    const first = guard.current();
+    const second = guard.current();
+    guard.bump();
+    expect(guard.isStale(first)).toBe(true);
+    expect(guard.isStale(second)).toBe(true);
   });
 });
