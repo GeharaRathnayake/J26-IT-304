@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "confusion-baseline"
+version = "0.0.0"
+description = "Experiment 1: TF-IDF + Logistic Regression confusion classifier baseline"
+requires-python = ">=3.13"
+
+[tool.setuptools]
+packages = ["confusion_baseline"]

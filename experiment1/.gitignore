@@ -1,0 +1,8 @@
+# Root .gitignore ignores *.joblib; re-include the committed model artifact (root exceptions don't reach this directory)
+!models/clf-*/pipeline.joblib
+# Root exception !reports/**/*.csv is anchored to the repo root, so re-include metrics CSVs here
+!reports/**/*.csv
+# Dataset licence is unstated: raw data never enters Git
+data/raw/
+# Dataset licence is unstated: derived data never enters Git
+data/processed/
