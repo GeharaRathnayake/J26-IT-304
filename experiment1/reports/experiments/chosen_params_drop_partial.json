@@ -1,0 +1,16 @@
+{
+  "params": {
+    "clf__C": 10,
+    "clf__class_weight": null,
+    "tfidf__min_df": 1,
+    "tfidf__ngram_range": [
+      1,
+      1
+    ],
+    "tfidf__stop_words": null,
+    "tfidf__sublinear_tf": true
+  },
+  "selection_metric": "macro_f1",
+  "cv": "StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42), groups=group_key, on train_dp",
+  "mean_cv_macro_f1": 0.645311
+}
