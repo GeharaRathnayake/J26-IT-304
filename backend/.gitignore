@@ -1,0 +1,8 @@
+# Root .gitignore ignores backend/models/ and *.joblib. Re-include the committed model artifact
+# (same precedent as experiment1/.gitignore). The directory must be re-included first: Git cannot
+# re-include a file whose parent directory is excluded.
+!models/
+!models/clf-*/
+!models/clf-*/metadata.json
+!models/clf-*/pipeline.joblib
+!models/clf-*/rules.yaml
