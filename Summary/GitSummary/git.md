@@ -321,6 +321,11 @@ Append here, newest last. One row per real Git action.
 | 2026-10-13 | `main` | `git init -b main`, root `.gitignore`, first commit `dc2c9f8` | Identity set per-repo as `YasinduKaveesha <yasinduksl2002@gmail.com>` — the existing global identity, **not** the address named in §1. §1 is wrong; this is the address that will be used. 41 files; `node_modules/` and `dist/` correctly excluded. |
 | 2026-10-13 | `dev1` | `git switch -c dev1` | Chosen instead of the §4 scheme below. See the note under §4. |
 | 2026-10-13 | `dev1` | 18 commits: frontend review fixes (`075fc27`…`ba674ea`) | Findings F1–F9 / G1–G3 of `frontend-review-2026-10-13.md`. Tests 19 → 37, typecheck and build clean. F7 (screen-reader announcement) implemented but **unverified** — no NVDA/Narrator available. |
+| 2026-10-13 | `dev1` | 5 commits: send-path hardening (`ec074b8`…`4a5681f`) | Fixes the latch wedge found in review: topics seeded so `resolveTurnTopic` is synchronous, `AbortSignal.timeout` budgets (30 s turn / 5 s metadata), generation guard for superseded responses. Tests 37 → 49. Negative control: reverting the abort signal hangs 6 of 7 new tests at the vitest timeout. |
+| 2026-10-13 | `main` | `git merge --no-ff dev1` → `ac21954` | 24 commits integrated. `dev1` **kept, not deleted**, by request. |
+| 2026-10-13 | `main` | Docs reorganised into `dev/Summary/{GitSummary,frontendSummary,Experiment1Summary,backendSumary}/` | `git.md` now lives at `Summary/GitSummary/git.md`. Any document referring to `dev/git.md` is stale. |
+| 2026-10-13 | `notebooks/confusion-classifier` | `git switch -c notebooks/confusion-classifier`, 12 commits (`2187018`…`80e4ce9`) | Experiment 1. Nine notebooks, one per pipeline stage; `confusion_baseline/` package; `clf-v1.0.0` artifact; handover in `Summary/Experiment1Summary/`. Branch touched only `experiment1/` and `Summary/Experiment1Summary/` — §4 rule 1 held. |
+| 2026-10-13 | `main` | `git merge --no-ff notebooks/confusion-classifier` → `6ed535a` | Experiment 1 integrated. Independently verified by the lead: artifact loads and predicts, `train_baseline.py` passes 5/5 checks including `predict_proba` matching the published pipeline to 1e-12. Result: macro F1 0.663, F1(confused) 0.758 — **target F1 ≥ 80% not met, not tuned toward**. |
 
 ### Pre-Git state of the work, for the record
 
