@@ -1,0 +1,57 @@
+version: "1.0"
+frozen_at_unit: U4
+note: >-
+  Out-of-distribution probe for the baseline confusion classifier. It holds 40 short utterances of the
+  kind the deployed tutor will receive from students (explicit confusion, topic confusion, hedged
+  attempts, explicit understanding). The training data contains none of these: it has no hedging
+  and every answer is a confident statement. The set was written by hand in unit U4, before any
+  model existed, without looking at the training answers, and is frozen from that commit. It is
+  never used for training, tuning or threshold selection and is never averaged into test metrics; it
+  is reported separately. A low score is expected: it quantifies the gap between the correctness
+  proxy and real confusion, and is the evidence for the rule layer, whose phrase list is seeded
+  from this file.
+items:
+  # explicit_confusion: bare statements, expected confused
+  - {id: e01, text: "I don't understand", expected: confused, category: explicit_confusion}
+  - {id: e02, text: "I’m lost", expected: confused, category: explicit_confusion}
+  - {id: e03, text: "no idea", expected: confused, category: explicit_confusion}
+  - {id: e04, text: "can you explain that again", expected: confused, category: explicit_confusion}
+  - {id: e05, text: "what do you mean", expected: confused, category: explicit_confusion}
+  - {id: e06, text: "wait, I don’t follow", expected: confused, category: explicit_confusion}
+  - {id: e07, text: "this makes no sense to me", expected: confused, category: explicit_confusion}
+  - {id: e08, text: "im so confused right now", expected: confused, category: explicit_confusion}
+  - {id: e09, text: "i dont get it", expected: confused, category: explicit_confusion}
+  - {id: e10, text: "huh? that went right over my head", expected: confused, category: explicit_confusion}
+  # topic_confusion: confusion about a named Java topic, expected confused
+  - {id: t01, text: "I don't get how an interface is different from an abstract class", expected: confused, category: topic_confusion}
+  - {id: t02, text: "why does my loop never stop, I don't understand how the condition works", expected: confused, category: topic_confusion}
+  - {id: t03, text: "i'm confused about when to use ArrayList vs LinkedList", expected: confused, category: topic_confusion}
+  - {id: t04, text: "what is the point of the static keyword? I still don't get it", expected: confused, category: topic_confusion}
+  - {id: t05, text: "I don’t understand how polymorphism actually works", expected: confused, category: topic_confusion}
+  - {id: t06, text: "how does garbage collection decide what to delete? I'm lost", expected: confused, category: topic_confusion}
+  - {id: t07, text: "what does a constructor even do, it makes no sense to me", expected: confused, category: topic_confusion}
+  - {id: t08, text: "i dont understand why we need getters and setters", expected: confused, category: topic_confusion}
+  - {id: t09, text: "I'm confused by try catch finally, which one runs first", expected: confused, category: topic_confusion}
+  - {id: t10, text: "not following how inheritance and super() fit together", expected: confused, category: topic_confusion}
+  # hedged_attempt: an uncertain attempt at an answer, expected confused
+  - {id: h01, text: "maybe it's the static keyword? not sure", expected: confused, category: hedged_attempt}
+  - {id: h02, text: "I think it's something to do with the heap but I'm not certain", expected: confused, category: hedged_attempt}
+  - {id: h03, text: "is it a loop that repeats? i guess", expected: confused, category: hedged_attempt}
+  - {id: h04, text: "probably the compiler checks it, but I'm just guessing", expected: confused, category: hedged_attempt}
+  - {id: h05, text: "hmm maybe an interface can't have methods?? not sure at all", expected: confused, category: hedged_attempt}
+  - {id: h06, text: "i think final means you cant change it... right?", expected: confused, category: hedged_attempt}
+  - {id: h07, text: "it might be an exception, I'm not really sure though", expected: confused, category: hedged_attempt}
+  - {id: h08, text: "maybe it returns void? honestly not sure", expected: confused, category: hedged_attempt}
+  - {id: h09, text: "I believe it's the same as an array but I could be wrong", expected: confused, category: hedged_attempt}
+  - {id: h10, text: "kind of a blueprint for objects? I'm not sure how to put it", expected: confused, category: hedged_attempt}
+  # explicit_understanding: expected understood
+  - {id: u01, text: "that makes sense", expected: understood, category: explicit_understanding}
+  - {id: u02, text: "got it", expected: understood, category: explicit_understanding}
+  - {id: u03, text: "I see now", expected: understood, category: explicit_understanding}
+  - {id: u04, text: "okay that's clear", expected: understood, category: explicit_understanding}
+  - {id: u05, text: "thanks, that clears it up", expected: understood, category: explicit_understanding}
+  - {id: u06, text: "ohh I get it now, a constructor runs when the object is created", expected: understood, category: explicit_understanding}
+  - {id: u07, text: "oh i see, static belongs to the class not the object", expected: understood, category: explicit_understanding}
+  - {id: u08, text: "yes I understand how inheritance works now", expected: understood, category: explicit_understanding}
+  - {id: u09, text: "makes sense now thanks", expected: understood, category: explicit_understanding}
+  - {id: u10, text: "thanks, that’s exactly what I was missing", expected: understood, category: explicit_understanding}
