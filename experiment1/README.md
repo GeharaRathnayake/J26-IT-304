@@ -64,6 +64,7 @@ functions), but run them in order to regenerate every file in `reports/experimen
 | `04_model_training_and_evaluation.ipynb` | §8–§9 | TF-IDF + LR, group-aware CV, the single test evaluation |
 | `05_features_and_ood_probe.ipynb` | §10–§11 | coefficient inspection and stability, length check, OOD probe |
 | `06_sensitivity_check.ipynb` | §12 | robustness of the label mapping: Partial Correct dropped |
+| `07_publish_artifact.ipynb` | §13 | the `clf-v1.0.0` artifact: pipeline, metadata, rules, verification |
 
 Execute one headless with:
 `conda run -n exp1-confusion python -m nbconvert --to notebook --execute --inplace --ExecutePreprocessor.kernel_name=exp1-confusion --ExecutePreprocessor.timeout=1800 notebooks/<name>.ipynb`
