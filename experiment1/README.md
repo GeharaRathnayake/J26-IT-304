@@ -1,8 +1,10 @@
 # Experiment 1: baseline confusion classifier
 
-A baseline classifier (TF-IDF + Logistic Regression) that detects learner confusion in student
-messages for an AI Java tutor (J26-IT-304 PP1). It sets the reference point that later experiments
-are compared against, and its pickled pipeline is the artifact the tutor service will load.
+A baseline classifier (TF-IDF + Logistic Regression) for an AI Java tutor (J26-IT-304 PP1). It
+classifies a student's answer as *confused* or *understood*, where the label is a **proxy** built from
+answer correctness (Correct → understood; Partial Correct / Wrong → confused), not a measurement of
+confusion. It sets the reference point that later experiments are compared against, and its pickled
+pipeline is the artifact the tutor service will load.
 
 ## Setup
 
@@ -48,6 +50,24 @@ probe/                probe inputs and outputs
 reports/experiments/  metrics CSVs and reports
 ```
 
+## Notebooks
+
+One notebook per pipeline stage. Section numbers run continuously across the series. Each notebook
+runs on its own from a clean kernel (its first code cell rebuilds its inputs with the package
+functions), but run them in order to regenerate every file in `reports/experiments/`:
+
+| Notebook | Sections | Stage |
+|---|---|---|
+| `01_data_and_eda.ipynb` | §1–§3 | provenance, load, exploratory analysis, leakage demonstration |
+| `02_cleaning_and_labels.ipynb` | §4–§5 | deduplication, group key, label mapping, proxy caveat |
+| `03_split_and_baselines.ipynb` | §6–§7 | group-aware split, trivial baselines, frozen OOD probe |
+| `04_model_training_and_evaluation.ipynb` | §8–§9 | TF-IDF + LR, group-aware CV, the single test evaluation |
+
+Execute one headless with:
+`conda run -n exp1-confusion python -m nbconvert --to notebook --execute --inplace --ExecutePreprocessor.kernel_name=exp1-confusion --ExecutePreprocessor.timeout=1800 notebooks/<name>.ipynb`
+
 ## Status
 
-Status: U0 scaffold
+Done: data and EDA, cleaning and labels, split and baselines, model training and evaluation.
+Next: feature inspection and the OOD probe, sensitivity check, the `clf-v1.0.0` artifact, error analysis,
+headless `train_baseline.py`.
