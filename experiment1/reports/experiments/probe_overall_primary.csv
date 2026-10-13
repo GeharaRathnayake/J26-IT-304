@@ -1,0 +1,4 @@
+System,Accuracy,Precision,Recall (confused),Specificity,Balanced acc.,F1 (confused),Macro F1
+Always confused,0.75,0.75,1.0,0.0,0.5,0.8571,0.4286
+Length-only LR,0.75,0.75,1.0,0.0,0.5,0.8571,0.4286
+TF-IDF + LR,0.7,0.7647,0.8667,0.2,0.5333,0.8125,0.5312

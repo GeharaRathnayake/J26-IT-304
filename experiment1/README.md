@@ -62,12 +62,13 @@ functions), but run them in order to regenerate every file in `reports/experimen
 | `02_cleaning_and_labels.ipynb` | §4–§5 | deduplication, group key, label mapping, proxy caveat |
 | `03_split_and_baselines.ipynb` | §6–§7 | group-aware split, trivial baselines, frozen OOD probe |
 | `04_model_training_and_evaluation.ipynb` | §8–§9 | TF-IDF + LR, group-aware CV, the single test evaluation |
+| `05_features_and_ood_probe.ipynb` | §10–§11 | coefficient inspection and stability, length check, OOD probe |
 
 Execute one headless with:
 `conda run -n exp1-confusion python -m nbconvert --to notebook --execute --inplace --ExecutePreprocessor.kernel_name=exp1-confusion --ExecutePreprocessor.timeout=1800 notebooks/<name>.ipynb`
 
 ## Status
 
-Done: data and EDA, cleaning and labels, split and baselines, model training and evaluation.
-Next: feature inspection and the OOD probe, sensitivity check, the `clf-v1.0.0` artifact, error analysis,
-headless `train_baseline.py`.
+Done: data and EDA, cleaning and labels, split and baselines, model training and evaluation,
+feature inspection and the OOD probe.
+Next: sensitivity check, the `clf-v1.0.0` artifact, error analysis, headless `train_baseline.py`.
