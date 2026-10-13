@@ -1,0 +1,7 @@
+System,Accuracy,Precision,Recall,F1 (confused),Macro F1
+Majority class (most frequent),0.5577,0.0,0.0,0.0,0.358
+Always confused,0.4423,0.4423,1.0,0.6133,0.3067
+Stratified random (seed 42),0.4808,0.4062,0.3768,0.391,0.4692
+Length-only LR,0.7244,0.6625,0.7681,0.7114,0.7238
+TF-IDF + LR (a) primary config,0.6603,0.6176,0.6087,0.6131,0.6551
+TF-IDF + LR (b) re-tuned,0.6538,0.6027,0.6377,0.6197,0.651

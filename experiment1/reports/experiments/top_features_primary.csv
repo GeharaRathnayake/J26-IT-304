@@ -1,0 +1,41 @@
+direction,rank,term,coef,df_understood,df_confused,share_understood,share_confused,category,reason
+-> confused,1,rounds the,6.542,0,4,0.0,0.008,topic,ceil()/floor()/cast question family; all 4 train answers containing it are confused
+-> confused,2,makes,5.503,1,16,0.003,0.03,semantic_wrongness,vague causal claim ('final makes sure the code is more secure'); 16 of 17 answers are confused
+-> confused,3,program,5.355,18,54,0.054,0.102,artefact,"template opening 'The program will ...', the most common opening of Wrong answers (EDA 3.5)"
+-> confused,4,returns an,5.06,1,4,0.003,0.008,topic,"return-type questions (ceil(), valueOf()); 5 answers only"
+-> confused,5,used to,4.923,32,75,0.096,0.142,semantic_wrongness,generic 'X is used to ...' definition without the precise detail
+-> confused,6,error,4.882,3,20,0.009,0.038,semantic_wrongness,wrong answers claim errors that do not occur ('will throw an error')
+-> confused,7,but it,4.71,5,30,0.015,0.057,semantic_wrongness,"qualifier clause typical of partial answers ('..., but it can only ...')"
+-> confused,8,log,4.592,0,2,0.0,0.004,topic,"complexity questions: the O(log n) claim; only 2 train answers, so rare"
+-> confused,9,is log,4.592,0,2,0.0,0.004,topic,same two answers as 'log' (O(log n))
+-> confused,10,but,4.575,22,65,0.066,0.123,semantic_wrongness,"contrast clause marking a qualified, partial answer"
+-> confused,11,only,4.572,16,49,0.048,0.093,semantic_wrongness,"absolute 'can only be used / only divisible by', typical of over-restricted claims"
+-> confused,12,used,4.522,50,101,0.15,0.192,semantic_wrongness,"generic 'is used for' phrasing, vague rather than precise"
+-> confused,13,the program,4.504,14,43,0.042,0.082,artefact,same 'The program will ...' generator template as 'program'
+-> confused,14,an error,3.917,1,13,0.003,0.025,semantic_wrongness,claims an error where there is none; 13 of 14 answers are confused
+-> confused,15,doesn,3.874,4,19,0.012,0.036,artefact,"tokeniser fragment of ""doesn't"" (sklearn splits at the apostrophe); negated claims"
+-> confused,16,the int,3.617,0,2,0.0,0.004,topic,"int / wrapper-type questions; 2 train answers, so rare"
+-> confused,17,to execute,3.597,0,7,0.0,0.013,topic,JVM / JRE / polymorphism-at-runtime answers; all 7 are confused
+-> confused,18,them,3.542,6,19,0.018,0.036,topic,encapsulation answers ('keep variables private ... access them'); 76% confused
+-> confused,19,that is,3.498,4,10,0.012,0.019,artefact,generic definitional connective ('a special method that is called ...') with no clear meaning
+-> confused,20,greater,3.495,0,7,0.0,0.013,topic,"numeric-comparison answers (prime numbers, wrapper 'greater than 0'); all 7 are confused"
+-> understood,1,of,-6.564,141,140,0.423,0.266,length_proxy,function word; understood answers use more noun phrases (42% vs 27% of answers contain it)
+-> understood,2,implementation,-5.927,12,2,0.036,0.004,semantic_correctness,precise technical term (interface vs abstract class); 12 understood vs 2 confused
+-> understood,3,to,-5.848,181,231,0.544,0.438,length_proxy,function word marking fuller sentences (54% vs 44%)
+-> understood,4,to the,-5.137,44,38,0.132,0.072,length_proxy,function-word bigram
+-> understood,5,which,-5.115,35,26,0.105,0.049,length_proxy,relative-clause connective that builds longer answers
+-> understood,6,or,-5.0,53,48,0.159,0.091,length_proxy,"coordinating connective, fuller answers"
+-> understood,7,double,-4.816,13,8,0.039,0.015,topic,double / cast questions
+-> understood,8,and then,-4.739,5,1,0.015,0.002,length_proxy,sequencing connective typical of longer explanations; 5 vs 1
+-> understood,9,method of,-4.514,4,0,0.012,0.0,semantic_correctness,"precise relation ('method of the superclass / child class'); 4 understood, 0 confused"
+-> understood,10,development,-4.462,6,2,0.018,0.004,topic,JDK vs JRE questions ('for development')
+-> understood,11,actual,-4.46,9,2,0.027,0.004,semantic_correctness,wording such as 'the actual object / runtime type'; 9 vs 2
+-> understood,12,defined,-4.446,9,1,0.027,0.002,semantic_correctness,precise 'no constructor is defined in the class'; 9 vs 1
+-> understood,13,of equals,-4.357,1,1,0.003,0.002,topic,"equals() return-type family; 1 vs 1, so effectively noise"
+-> understood,14,typically,-4.354,10,2,0.03,0.004,semantic_correctness,precisely qualified statement ('typically used when the number of iterations is known'); 10 vs 2
+-> understood,15,whereas,-4.219,8,2,0.024,0.004,length_proxy,contrast connective that builds longer comparisons
+-> understood,16,if,-4.17,63,78,0.189,0.148,length_proxy,"conditional connective, fuller answers (19% vs 15%)"
+-> understood,17,the actual,-4.149,6,1,0.018,0.002,semantic_correctness,same 'actual (runtime) type' wording
+-> understood,18,declared,-4.014,7,2,0.021,0.004,semantic_correctness,precise 'declared final' / 'handled or declared'; 7 vs 2
+-> understood,19,the integer,-4.012,5,0,0.015,0.0,topic,"Integer / parseInt question family; 5 understood, 0 confused"
+-> understood,20,native machine,-3.96,5,0,0.015,0.0,semantic_correctness,complete JIT description ('compiling bytecode into native machine code'); 5 vs 0

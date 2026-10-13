@@ -1,0 +1,4 @@
+mapping,train rows,test rows,test confused share,always-confused F1(confused),length-only macro F1,TF-IDF+LR accuracy,F1(confused),macro F1,margin over always-confused (F1 confused),margin over length-only (macro F1)
+primary,860,216,0.5972,0.7478,0.6214,0.6898,0.7581,0.6629,0.0103,0.0415
+drop_partial (a) primary config,631,156,0.4423,0.6133,0.7238,0.6603,0.6131,0.6551,-0.0002,-0.0687
+drop_partial (b) re-tuned,631,156,0.4423,0.6133,0.7238,0.6538,0.6197,0.651,0.0064,-0.0728
