@@ -4,6 +4,11 @@ enforced AFTER generation, not merely requested.
 The format: Markdown, Java only in fenced blocks, and exactly one `**Check:**` line which is the
 final non-empty line (the frontend splits the check question out on that marker).
 
+The prompt ASKS (no headings, at most 60 words, a final Check line); this module GUARANTEES. Small
+models ignore instructions (llama3.2:3b opens with a heading and is cut off mid-sentence), and a
+broken reply must never reach the student: `usable` says whether a reply would ship, and the caller
+serves the template instead when it would not.
+
 Known limits (not handled, by design): a plain "Check:" without the bold markers is not recognised
 (a second, bold check line is appended); a lone `</think>` with no opener cannot tell us what was
 reasoning, so only the stray tag is removed, not the text before it.
@@ -35,6 +40,91 @@ def strip_think(text: str) -> str:
     text = _THINK_CLOSED.sub("", text)
     text = _THINK_UNCLOSED.sub("", text)
     return _THINK_STRAY.sub("", text)
+
+
+# --- headings, truncation, usability (S7b) ---------------------------------------------------------
+
+_FENCE = re.compile(r"^[ \t]*```")
+_ATX = re.compile(r"^ {0,3}#{1,6}(?:[ \t]+.*)?$")
+_SETEXT_UNDERLINE = re.compile(r"^ {0,3}(?:={3,}|-{3,})[ \t]*$")
+_BOLD_ONLY = re.compile(r"^\s*(?:\*\*[^*\n]+\*\*|__[^_\n]+__):?\s*$")
+_SENTENCE_END = re.compile(r"""[.!?]["')\]*_`]*(?=\s|$)""")
+_JAVA_BLOCK = re.compile(r"^[ \t]*```java[^\n]*\n.*?^[ \t]*```[ \t]*$", re.DOTALL | re.MULTILINE)
+_CLOSED_FENCED = re.compile(r"^[ \t]*```[^\n]*\n.*?^[ \t]*```[ \t]*$", re.DOTALL | re.MULTILINE)
+
+
+def _looks_like_a_title(line: str) -> bool:
+    """A setext title line is short and does not end like a sentence, so a real sentence that happens
+    to sit above a `---` rule is never deleted."""
+    s = line.strip()
+    return bool(s) and len(s) <= 100 and not re.search(r"[.!?]\s*$", s)
+
+
+def strip_headings(text: str) -> str:
+    """Remove ATX heading lines (`# ...`), setext underlines (`===`, `---`) TOGETHER with the title
+    line above them, and a leading line that is only bold text. Code blocks are left untouched."""
+    lines = text.replace("\r\n", "\n").split("\n")
+    kept: list[tuple[str, bool]] = []  # (line, is_code)
+    in_fence = False
+    prev_kept_index = -2  # index in `lines` of the line most recently kept
+    for i, line in enumerate(lines):
+        if _FENCE.match(line):
+            in_fence = not in_fence
+            kept.append((line, True))
+            prev_kept_index = i
+            continue
+        if in_fence:
+            kept.append((line, True))
+            prev_kept_index = i
+            continue
+        if _ATX.match(line):
+            continue
+        if (
+            _SETEXT_UNDERLINE.match(line)
+            and kept
+            and not kept[-1][1]
+            and prev_kept_index == i - 1
+            and _looks_like_a_title(kept[-1][0])
+        ):
+            kept.pop()  # the title line above the underline goes too
+            continue
+        if not line.strip() and kept and not kept[-1][1] and not kept[-1][0].strip():
+            continue  # a removed heading must not leave a double blank line behind (prose only, never code)
+        kept.append((line, False))
+        prev_kept_index = i
+    for idx, (line, is_code) in enumerate(kept):  # a leading bold-only line is a title
+        if line.strip():
+            if not is_code and _BOLD_ONLY.match(line):
+                kept.pop(idx)
+            break
+    return "\n".join(line for line, _ in kept).lstrip("\n")
+
+
+def has_heading(text: str) -> bool:
+    return strip_headings(text).strip() != text.replace("\r\n", "\n").strip()
+
+
+def drop_unclosed_code(text: str) -> str:
+    """A half code block is broken Java on screen: drop an UNCLOSED trailing block entirely."""
+    lines = text.split("\n")
+    fences = [i for i, ln in enumerate(lines) if _FENCE.match(ln)]
+    if len(fences) % 2 == 1:
+        return "\n".join(lines[: fences[-1]]).rstrip()
+    return text
+
+
+def trim_to_last_sentence(text: str) -> str:
+    """For a reply cut off at the token cap: cut the prose after the last closed code block back to
+    its last complete sentence (`.`, `!` or `?` followed by whitespace or the end). Code is never cut."""
+    last_close_end = 0
+    for m in _CLOSED_FENCED.finditer(text):
+        last_close_end = m.end()
+    prefix, trailing = text[:last_close_end], text[last_close_end:]
+    if not trailing.strip():
+        return text.rstrip()
+    ends = list(_SENTENCE_END.finditer(trailing))
+    trailing = trailing[: ends[-1].end()] if ends else ""
+    return (prefix + trailing).rstrip()
 
 
 def _fence_is_open(lines: list[str]) -> bool:
@@ -72,5 +162,26 @@ def ensure_check(text: str, strategy: str) -> str:
     return f"{body}\n\n{CHECK} {question}" if body else f"{CHECK} {question}"
 
 
-def finalise(text: str, strategy: str) -> str:
-    return ensure_check(strip_think(text), strategy).strip()
+def finalise(text: str, strategy: str, truncated: bool = False) -> str:
+    """strip_think, strip_headings, (if the model stopped at the token cap: drop an unclosed code
+    block and trim back to the last complete sentence), then ensure_check. A reply that was not
+    truncated is never trimmed."""
+    text = strip_headings(strip_think(text))
+    if truncated:
+        text = trim_to_last_sentence(drop_unclosed_code(text))
+    return ensure_check(text, strategy).strip()
+
+
+def usable(text: str, strategy: str, truncated: bool = False) -> bool:
+    """Would this reply ship? After post-processing it needs at least one complete prose sentence
+    outside code and outside the Check line, and an `example` needs a closed ```java block. When this
+    is False the service serves the template (meta.fallback: true) instead."""
+    final = finalise(text, strategy, truncated)
+    prose = _CLOSED_FENCED.sub("", final)
+    prose = "\n".join(ln for ln in prose.splitlines() if not ln.strip().startswith(CHECK))
+    prose = re.sub(r"`[^`\n]*`", "X", prose)
+    if not _SENTENCE_END.search(prose):
+        return False
+    if strategy == "example" and not _JAVA_BLOCK.search(final):
+        return False
+    return True

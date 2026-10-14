@@ -21,7 +21,8 @@ from app.topics import GENERAL, public_topics
 
 STRATEGY_INTENT = {
     "theory": "a precise definition plus the key rules, at beginner level",
-    "example": "a short, correct Java example (at most about 12 lines), then one or two sentences on what it shows",
+    # The line ceiling lives in EXAMPLE_LIMIT below; stating a different one here would contradict it.
+    "example": "a short, correct Java example, then one or two sentences on what it shows",
     "simplified": "plain language, no jargon, small steps",
     "analogy": "a real-world analogy, mapped explicitly back to Java",
 }
@@ -30,10 +31,14 @@ FORMAT_INSTRUCTION = (
     "Respond in Markdown. Put any Java code in fenced ```java code blocks. "
     "End with exactly one check question on its own line, beginning with `**Check:**`."
 )
-LENGTH_LIMIT = (
-    "Length: two to four sentences of explanation"
-    " (plus one short Java code block for the example strategy only)."
-)
+# PROMPT REVISION r2 (S7b). The first benchmark showed llama3.2:3b ignoring a sentence-count limit
+# (a sentence count does not bound length) and opening every reply with a heading. Be concrete: a word
+# ceiling, no headings, and a required final line. One revision, applied to every model, then stop.
+PROMPT_REVISION = "r2"
+NO_HEADINGS = "Do not use headings, titles or bold title lines."
+WORD_LIMIT = "Write at most 60 words of explanation."
+EXAMPLE_LIMIT = "Give at most 8 lines of Java code and at most 2 sentences about it."
+FINAL_LINE = "Your last line must be `**Check:**` followed by one short question for the student."
 NO_REPEAT_INSTRUCTION = "Do not repeat these explanations; use a different angle."
 
 STUDENT_TAG = "student_message"
@@ -78,8 +83,10 @@ def build_prompt(
         _topic_line(topic),
         f"Strategy: {strategy} - {STRATEGY_INTENT[strategy]}",
         f"Explanation cycle: {cycle}",
-        LENGTH_LIMIT,
+        EXAMPLE_LIMIT if strategy == "example" else WORD_LIMIT,
+        NO_HEADINGS,
         FORMAT_INSTRUCTION,
+        FINAL_LINE,
     ]
     if cycle >= 2 and prior_explanations:
         numbered = "\n".join(f"{i}. {neutralise(text)}" for i, text in enumerate(prior_explanations, start=1))

@@ -250,9 +250,10 @@ def test_aggregate_spread_is_max_minus_min_per_prompt():
     assert sc.aggregate(gens, None)["wall_spread_median_s"] == 3.5  # median of 6 and 1
 
 
-def fake_result(model, date, **kw):
-    return {"schema": 1, "model": model, "date": date, "cold_start": {"wall_s": kw.pop("cold", 30.0)},
-            "generations": [gen(**kw), gen(strategy="example", **kw)]}
+def fake_result(model, date, num_predict=80, revision="r2", **kw):
+    r = {"schema": 1, "model": model, "date": date, "num_predict": num_predict, "prompt_revision": revision,
+         "cold_start": {"wall_s": kw.pop("cold", 30.0)}, "generations": [gen(**kw), gen(strategy="example", **kw)]}
+    return r
 
 
 def test_summary_regenerates_from_two_result_files_and_grows_with_a_third(tmp_path):
@@ -263,15 +264,15 @@ def test_summary_regenerates_from_two_result_files_and_grows_with_a_third(tmp_pa
     (tmp_path / "other.json").write_text(json.dumps({"hello": 1}), encoding="utf-8")  # ignored
     path = bench.regenerate_summary(tmp_path)
     text = path.read_text(encoding="utf-8")
-    assert "| qwen3:4b (2026-10-14) | 30.0 s | 16.0 s |" in text
-    assert "| llama3.2:3b (2026-10-15) | 8.0 s | 4.0 s |" in text
+    assert "| qwen3:4b @80 r2 (2026-10-14) | 30.0 s | 16.0 s |" in text
+    assert "| llama3.2:3b @80 r2 (2026-10-15) | 8.0 s | 4.0 s |" in text
     assert "9.5" in text and "40.0" in text
     assert "over 12 s" in text and "human rating (mean)" in text and text.count("\n| ") == 3  # header + two rows (sep starts with '|-')
     assert "100%" in text  # the leak / truncated percentages for the first model
 
     (tmp_path / "c.json").write_text(json.dumps(fake_result("qwen3:4b-instruct", "2026-10-16", wall=6.0)), encoding="utf-8")
     text = bench.regenerate_summary(tmp_path).read_text(encoding="utf-8")
-    assert "qwen3:4b-instruct (2026-10-16)" in text and text.count("\n| ") == 4
+    assert "qwen3:4b-instruct @80 r2 (2026-10-16)" in text and text.count("\n| ") == 4
 
 
 def test_summary_recomputes_from_the_generations_not_from_a_stale_stored_aggregate(tmp_path):
@@ -422,7 +423,7 @@ def test_the_rating_sheet_has_one_empty_rating_line_per_output_with_the_prompt_c
     sheet = next((tmp_path / "out").glob("*_outputs.md")).read_text(encoding="utf-8")
     assert sheet.count("\nRating:\n") == 16
     assert "## qwen3_4b_p01_r1: inheritance / theory (run 1)" in sheet
-    assert "Raw:" in sheet and "After finalise" in sheet and GOOD_THEORY.splitlines()[0] in sheet
+    assert "Raw:" in sheet and "Shipped (post-processed" in sheet and GOOD_THEORY.splitlines()[0] in sheet
 
 
 def test_a_truncated_and_leaking_model_is_measured_as_such(tmp_path):
@@ -496,3 +497,143 @@ def test_the_summary_has_an_over_12s_column_filled_from_the_generations(tmp_path
     text = bench.regenerate_summary(tmp_path).read_text(encoding="utf-8")
     row = next(line for line in text.splitlines() if line.startswith("| slow:1b"))
     assert "| 100% |" in row  # every generation took 20 s
+
+# --- S7b: shipped scoring, the new columns, --num-predict, before/after rows -------------------------------------------------------------
+
+
+LLAMA_STYLE = (
+    "**Inheritance in Java**\n======================\n\nInheritance is a fundamental concept in object-oriented "
+    "programming. The child class inherits from the parent class.\n\nThe key rules of inheritance are"
+)
+
+
+def test_score_raw_marks_a_heading():
+    assert sc.score_raw(LLAMA_STYLE, "theory", "length")["heading"] is True
+    assert sc.score_raw(GOOD_THEORY, "theory", "stop")["heading"] is False
+
+
+def test_would_ship_uses_the_truncation_flag_and_rejects_a_leak():
+    assert sc.would_ship(LLAMA_STYLE, "theory", "length") is True  # heading stripped, trimmed to a full sentence
+    assert sc.would_ship("A loop is a way to repeat", "theory", "length") is False  # no complete sentence
+    leak = "We are given the topic: Inheritance. We are to provide: theory. We must follow the instructions exactly."
+    assert sc.would_ship(leak, "theory", "length") is False  # format-wise it has sentences, but a leak never ships
+    assert sc.would_ship("Look:\n\n```java\nint x = 1;\nint y", "example", "length") is False  # unclosed code dropped
+    assert sc.would_ship(GOOD_EXAMPLE, "example", "stop") is True
+
+
+def test_score_generation_records_the_shipped_flags():
+    final = finalise(LLAMA_STYLE, "theory", truncated=True)
+    s = sc.score_generation(LLAMA_STYLE, final, "theory", "length")
+    assert s["score_final"]["usable"] is True and s["score_raw"]["heading"] is True and s["score_raw"]["truncated"] is True
+    assert s["score_final"]["java_complete"] is False
+
+
+def gen2(strategy="theory", usable=True, java=True, heading=False, **kw):
+    g = gen(strategy=strategy, **kw)
+    g["score_final"].update(usable=usable, java_complete=java)
+    g["score_raw"]["heading"] = heading
+    return g
+
+
+def test_aggregate_new_columns():
+    gens = [
+        gen2(usable=True, heading=True), gen2(usable=False, heading=True), gen2(usable=True), gen2(usable=True),
+        gen2(strategy="example", usable=True, java=True), gen2(strategy="example", usable=False, java=False),
+    ]
+    a = sc.aggregate(gens, None)
+    assert a["pct_usable"] == pytest.approx(100 * 4 / 6)
+    assert a["pct_example_java_complete"] == 50.0
+    assert a["pct_headings_raw"] == pytest.approx(100 * 2 / 6)
+
+
+def test_aggregate_recomputes_the_new_columns_for_r1_results_that_lack_them():
+    old = {"id": "x", "topic": "loops", "strategy": "theory", "run": 1, "wall_s": 5.0, "ttft_s": 0.1, "tok_s": 10.0,
+           "done_reason": "length", "raw_text": LLAMA_STYLE,
+           "score_raw": {"empty": False, "check_ok": False, "sentences_ok": True, "java_ok": True, "think_tag": False,
+                         "reasoning_leak": False, "truncated": True},
+           "score_final": {"check_ok": True, "sentences_ok": True, "think_tag": False, "reasoning_leak": False}}
+    a = sc.aggregate([old], None)
+    assert a["pct_usable"] == 100.0 and a["pct_headings_raw"] == 100.0
+    no_text = {k: v for k, v in old.items() if k != "raw_text"}
+    assert sc.aggregate([no_text], None)["pct_usable"] is None  # nothing to recompute from: n/a, not a guess
+
+
+def test_summary_has_the_new_columns_and_the_decisive_one_is_bold(tmp_path):
+    r = fake_result("m", "2026-10-15", num_predict=110)
+    for g in r["generations"]:
+        g["score_final"].update(usable=True, java_complete=True)
+        g["score_raw"]["heading"] = False
+    (tmp_path / "m.json").write_text(json.dumps(r), encoding="utf-8")
+    text = bench.regenerate_summary(tmp_path).read_text(encoding="utf-8")
+    header = next(line for line in text.splitlines() if line.startswith("| model"))
+    for column in ("usable (would ship)", "example complete java", "headings (raw)", "over 12 s", "human rating (mean)"):
+        assert column in header
+    assert header.count("|") == 21 and text.splitlines()[4].count("|") == 21  # 20 columns, header and separator
+    row = next(line for line in text.splitlines() if line.startswith("| m @110"))
+    assert "| m @110 r2 (2026-10-15) |" in row and "**100%**" in row
+
+
+def test_summary_shows_before_and_after_rows_for_the_same_model(tmp_path):
+    r1 = fake_result("llama3.2:3b", "2026-10-15", num_predict=80, revision="r1")
+    del r1["prompt_revision"]  # an old result file predates the field: it is r1
+    r1["generations"] = [dict(g, raw_text=LLAMA_STYLE, done_reason="length") for g in r1["generations"]]
+    r2a = fake_result("llama3.2:3b", "2026-10-15", num_predict=80)
+    r2b = fake_result("llama3.2:3b", "2026-10-15", num_predict=110)
+    for name, r in (("a.json", r1), ("b.json", r2a), ("c.json", r2b)):
+        (tmp_path / name).write_text(json.dumps(r), encoding="utf-8")
+    text = bench.regenerate_summary(tmp_path).read_text(encoding="utf-8")
+    labels = [line.split("|")[1].strip() for line in text.splitlines() if line.startswith("| llama")]
+    assert labels == ["llama3.2:3b @80 r1 (2026-10-15)", "llama3.2:3b @80 r2 (2026-10-15)", "llama3.2:3b @110 r2 (2026-10-15)"]
+
+
+def test_num_predict_default_is_80_and_is_sent_and_recorded(tmp_path):
+    fake = FakeOllama()
+    assert run_main(tmp_path, fake) == 0
+    assert all(p["options"] == {"num_predict": 80} for p in fake.chat_payloads)
+    r = json.loads(next((tmp_path / "out").glob("qwen3_4b_*_np80_r2.json")).read_text(encoding="utf-8"))
+    assert r["num_predict"] == 80 and r["call_parameters"]["options"] == {"num_predict": 80}
+    assert r["prompt_revision"] == "r2" and len(r["prompt_set_sha256"]) == 64
+
+
+def test_num_predict_110_is_sent_recorded_and_named_in_the_file(tmp_path):
+    fake = FakeOllama()
+    assert run_main(tmp_path, fake, "--num-predict", "110") == 0
+    assert len(fake.chat_payloads) == 17 and all(p["options"] == {"num_predict": 110} for p in fake.chat_payloads)
+    path = next((tmp_path / "out").glob("qwen3_4b_*_np110_r2.json"))
+    r = json.loads(path.read_text(encoding="utf-8"))
+    assert r["num_predict"] == 110 and r["call_parameters"]["options"]["num_predict"] == 110
+    assert "@110 r2" in (tmp_path / "out" / "SUMMARY.md").read_text(encoding="utf-8")
+
+
+def test_a_second_run_with_another_cap_never_overwrites_the_first_or_an_earlier_file(tmp_path):
+    out = tmp_path / "out"
+    out.mkdir()
+    earlier = out / "qwen3_4b_2026-10-15.json"  # the pre-S7b naming
+    earlier.write_text(json.dumps(fake_result("qwen3:4b", "2026-10-15", num_predict=80, revision="r1")), encoding="utf-8")
+    before = earlier.read_bytes()
+    assert run_main(tmp_path, FakeOllama(), "--num-predict", "80") == 0
+    assert run_main(tmp_path, FakeOllama(), "--num-predict", "110") == 0
+    names = sorted(p.name for p in out.glob("qwen3_4b_*.json"))
+    assert len(names) == 3 and earlier.name in names
+    assert earlier.read_bytes() == before  # untouched
+    summary = (out / "SUMMARY.md").read_text(encoding="utf-8")
+    assert summary.count("\n| qwen3:4b @") == 3  # before and after, both caps
+
+
+def test_the_shipped_text_in_the_result_is_post_processed_with_the_truncation_flag(tmp_path):
+    fake = FakeOllama(reply=LLAMA_STYLE, done_reason="length")
+    assert run_main(tmp_path, fake) == 0
+    r = json.loads(next((tmp_path / "out").glob("*_np80_r2.json")).read_text(encoding="utf-8"))
+    g = r["generations"][0]
+    assert g["raw_text"] == LLAMA_STYLE
+    assert g["final_text"].startswith("Inheritance is a fundamental concept") and "key rules" not in g["final_text"]
+    assert g["score_final"]["usable"] is True and g["score_raw"]["heading"] is True
+    assert r["aggregates"]["pct_usable"] == 75.0  # 12 of 16 ship; the 4 example prompts have no java block in this reply
+    assert r["aggregates"]["pct_headings_raw"] == 100.0
+    assert r["aggregates"]["pct_example_java_complete"] == 0.0
+
+
+def test_the_benchmarks_readme_records_the_one_revision_rule():
+    readme = (Path(__file__).resolve().parents[1] / "benchmarks" / "llm" / "README.md").read_text(encoding="utf-8")
+    assert "one prompt revision" in readme and "one re-run" in readme and "stop" in readme
+    assert "usable (would ship)" in readme

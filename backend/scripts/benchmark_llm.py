@@ -16,7 +16,7 @@ THE PROTOCOL (decision D2): 16 prompts = 4 strategies x 4 topics, each built wit
 every model; no per-model tuning. 3 runs per prompt. One throwaway warm-up generation per model
 (its wall time is recorded as cold start). CALL PARAMETERS, FIXED (the next stage's adapter must use
 these same ones): Ollama /api/chat, the prompt as a single user message, think=false, stream=true,
-options.num_predict=80, 60 s client timeout (a slow model is measured, not cut off).
+options.num_predict=N (default 80, `--num-predict N`; recorded in the results), 60 s client timeout (a slow model is measured, not cut off).
 
 The tutor is a prototype; these are mechanical format checks plus timings, not a judgement of
 explanation quality.
@@ -25,6 +25,7 @@ explanation quality.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 import time
@@ -41,21 +42,27 @@ for _p in (str(SCRIPTS_DIR), str(BACKEND_DIR)):
 
 import llm_scoring  # noqa: E402
 from app.generation.postprocess import finalise  # noqa: E402
-from app.generation.prompts import build_prompt  # noqa: E402
+from app.generation.prompts import PROMPT_REVISION, build_prompt  # noqa: E402
 
 STRATEGIES = ("theory", "example", "simplified", "analogy")
 TOPICS = ("inheritance", "loops", "exception_handling", "polymorphism")
 STUDENT_MESSAGE = "I don't understand"
 TIMEOUT_S = 60.0
-NUM_PREDICT = 80  # a spoken reply (2-4 sentences + the Check line) is about 50-70 tokens
-CALL_PARAMETERS = {
-    "endpoint": "/api/chat",
-    "messages": "one user message containing the prompt",
-    "think": False,
-    "stream": True,
-    "options": {"num_predict": NUM_PREDICT},
-    "client_timeout_s": TIMEOUT_S,
-}
+NUM_PREDICT = 80  # the default cap: a spoken reply plus its Check line is about 50-70 tokens; --num-predict overrides
+
+
+def call_parameters(num_predict: int) -> dict:
+    return {
+        "endpoint": "/api/chat",
+        "messages": "one user message containing the prompt",
+        "think": False,
+        "stream": True,
+        "options": {"num_predict": num_predict},
+        "client_timeout_s": TIMEOUT_S,
+    }
+
+
+CALL_PARAMETERS = call_parameters(NUM_PREDICT)  # the defaults, for reference
 # The service will fall back to a template after 12 s. That is the service's timeout, NOT a pass mark:
 # the benchmark never stops a generation at 12 s, it records what happens (% over 12 s).
 SERVICE_TIMEOUT_S = llm_scoring.SERVICE_TIMEOUT_S
@@ -87,17 +94,17 @@ def normalise_model(name: str) -> str:
     return name if ":" in name else f"{name}:latest"
 
 
-def chat_payload(model: str, prompt: str) -> dict:
+def chat_payload(model: str, prompt: str, num_predict: int = NUM_PREDICT) -> dict:
     return {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "think": False,
         "stream": True,
-        "options": {"num_predict": NUM_PREDICT},
+        "options": {"num_predict": num_predict},
     }
 
 
-def generate_once(client: httpx.Client, model: str, prompt: str) -> dict:
+def generate_once(client: httpx.Client, model: str, prompt: str, num_predict: int = NUM_PREDICT) -> dict:
     """One streamed generation. Returns the measurements, or {"error": ...}."""
     start = time.perf_counter()
     ttft = None
@@ -105,7 +112,7 @@ def generate_once(client: httpx.Client, model: str, prompt: str) -> dict:
     thinking_chars = 0
     final: dict = {}
     try:
-        with client.stream("POST", "/api/chat", json=chat_payload(model, prompt)) as resp:
+        with client.stream("POST", "/api/chat", json=chat_payload(model, prompt, num_predict)) as resp:
             if resp.status_code != 200:
                 resp.read()
                 return {"error": f"HTTP {resp.status_code}: {resp.text[:200]}"}
@@ -196,7 +203,7 @@ def rating_sheet(model: str, run_date: str, generations: list[dict]) -> str:
             g["raw_text"],
             "~~~~",
             "",
-            "After finalise (what the student sees):",
+            "Shipped (post-processed; what the student sees if it is usable, otherwise the template is served):",
             "",
             "~~~~markdown",
             g["final_text"],
@@ -208,13 +215,13 @@ def rating_sheet(model: str, run_date: str, generations: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def benchmark_model(client: httpx.Client, model: str, runs: int, base: str, ollama_version: str, unload_first: bool, log) -> dict:
+def benchmark_model(client: httpx.Client, model: str, runs: int, base: str, ollama_version: str, unload_first: bool, log, num_predict: int = NUM_PREDICT) -> dict:
     items = prompt_set()
     cold = {"wall_s": None, "unload_first": unload_first}
     if unload_first:
         cold.update(unload(client, model))
         log(f"  cold start: model was resident={cold.get('was_resident')}, unloaded={cold.get('unloaded')}")
-    warm = generate_once(client, model, items[0]["prompt"])  # throwaway
+    warm = generate_once(client, model, items[0]["prompt"], num_predict)  # throwaway
     cold["wall_s"] = warm.get("wall_s")
     cold["load_duration_s"] = warm.get("load_duration_s")
     cold["error"] = warm.get("error")
@@ -226,13 +233,15 @@ def benchmark_model(client: httpx.Client, model: str, runs: int, base: str, olla
         for idx, item in enumerate(items):
             gid = f"{safe_name(model)}_p{idx + 1:02d}_r{run}"
             base_rec = {"id": gid, "topic": item["topic"], "strategy": item["strategy"], "run": run, "prompt_index": idx + 1}
-            out = generate_once(client, model, item["prompt"])
+            out = generate_once(client, model, item["prompt"], num_predict)
             if out.get("error"):
                 generations.append({**base_rec, "error": out["error"], "wall_s": out.get("wall_s")})
                 log(f"  {gid} {item['topic']}/{item['strategy']}: ERROR {out['error']}")
                 continue
             raw = out["text"]
-            final = finalise(raw, item["strategy"])
+            # The SHIPPED text: what the service would serve (it serves the template instead when it is
+            # not usable). The model stopped at the token cap iff done_reason == "length".
+            final = finalise(raw, item["strategy"], truncated=llm_scoring.truncated(out["done_reason"]))
             score = llm_scoring.score_generation(raw, final, item["strategy"], out["done_reason"])
             rec = {
                 **base_rec,
@@ -253,7 +262,10 @@ def benchmark_model(client: httpx.Client, model: str, runs: int, base: str, olla
         "date": date.today().isoformat(),
         "ollama_version": ollama_version,
         "base_url": base,
-        "call_parameters": CALL_PARAMETERS,
+        "call_parameters": call_parameters(num_predict),
+        "num_predict": num_predict,
+        "prompt_revision": PROMPT_REVISION,
+        "prompt_set_sha256": hashlib.sha256("\n".join(i["prompt"] for i in items).encode("utf-8")).hexdigest(),
         "service_timeout_s_reference": SERVICE_TIMEOUT_S,
         "service_timeout_note": "the service falls back to a template after this; a reference, not a pass mark, and no generation is stopped at it",
         "student_message": STUDENT_MESSAGE,
@@ -291,6 +303,7 @@ def main(argv: list[str] | None = None, transport: httpx.BaseTransport | None = 
     ap.add_argument("--runs", type=int, default=3)
     ap.add_argument("--base", default="http://127.0.0.1:11434")
     ap.add_argument("--out", default="benchmarks/llm/")
+    ap.add_argument("--num-predict", type=int, default=NUM_PREDICT, help="token cap per generation (recorded in the results)")
     ap.add_argument("--no-unload", action="store_true", help="do not evict a resident model before the warm-up")
     args = ap.parse_args(argv)
     log = lambda msg: print(msg, flush=True)  # noqa: E731
@@ -314,9 +327,10 @@ def main(argv: list[str] | None = None, transport: httpx.BaseTransport | None = 
             out_dir.mkdir(parents=True, exist_ok=True)
             errors = 0
             for model in wanted:
-                log(f"\n== {model}: {args.runs} runs x 16 prompts, num_predict={NUM_PREDICT}, think=false ==")
-                result = benchmark_model(client, model, args.runs, args.base, version, not args.no_unload, log)
-                stem = f"{safe_name(model)}_{result['date']}"
+                log(f"\n== {model}: {args.runs} runs x 16 prompts, num_predict={args.num_predict}, think=false ==")
+                result = benchmark_model(client, model, args.runs, args.base, version, not args.no_unload, log, args.num_predict)
+                # num_predict and prompt revision are in the name, so an earlier result file is never overwritten
+                stem = f"{safe_name(model)}_{result['date']}_np{args.num_predict}_{PROMPT_REVISION}"
                 (out_dir / f"{stem}.json").write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
                 (out_dir / f"{stem}_outputs.md").write_text(
                     rating_sheet(model, result["date"], result["generations"]), encoding="utf-8")

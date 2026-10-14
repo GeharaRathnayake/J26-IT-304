@@ -17,4 +17,6 @@ README.md
 .env.*
 *.log
 .coverage
-benchmarks/
+benchmarks/llm/*.json
+benchmarks/llm/*_outputs.md
+benchmarks/llm/SUMMARY.md

@@ -21,7 +21,18 @@ from app.generation.adapters import (
     TemplateFallback,
     parse_templates,
 )
-from app.generation.postprocess import CHECK, DEFAULT_CHECKS, ensure_check, finalise, strip_think
+from app.generation.postprocess import (
+    CHECK,
+    DEFAULT_CHECKS,
+    drop_unclosed_code,
+    ensure_check,
+    finalise,
+    has_heading,
+    strip_headings,
+    strip_think,
+    trim_to_last_sentence,
+    usable,
+)
 from app.generation.prompts import (
     FORMAT_INSTRUCTION,
     NO_REPEAT_INSTRUCTION,
@@ -299,7 +310,8 @@ def test_prompt_has_all_required_parts():
     assert "Topic: Loops" in p  # display label, not the slug
     assert STRATEGY_INTENT["analogy"] in p and "Strategy: analogy" in p
     assert "Explanation cycle: 1" in p
-    assert "two to four sentences" in p
+    assert "two to four sentences" not in p  # r2: a word ceiling, not a sentence count
+    assert "Write at most 60 words of explanation." in p
     assert FORMAT_INSTRUCTION in p
     assert "Respond in Markdown. Put any Java code in fenced ```java code blocks. End with exactly one check question on its own line, beginning with `**Check:**`." in p
     assert "<student_message>\nI do not get it\n</student_message>" in p
@@ -505,3 +517,191 @@ def test_mock_adapter_matches_the_protocol_shape():
 
     assert inspect.iscoroutinefunction(MockAdapter.complete)
     assert list(inspect.signature(MockAdapter.complete).parameters) == ["self", "prompt", "timeout_s"]
+
+# --- prompt revision r2 (S7b): the three new instructions, verbatim ---------------------------------------------------------
+
+
+def test_prompt_contains_the_three_new_instructions_verbatim():
+    p = prompt(strategy="theory")
+    assert "Do not use headings, titles or bold title lines." in p
+    assert "Write at most 60 words of explanation." in p
+    assert "Your last line must be `**Check:**` followed by one short question for the student." in p
+
+
+def test_example_gets_its_own_ceiling_instead_of_the_word_limit():
+    p = prompt(strategy="example")
+    assert "Give at most 8 lines of Java code and at most 2 sentences about it." in p
+    assert "Write at most 60 words of explanation." not in p
+    assert "at most about 12 lines" not in p  # the intent must not contradict the 8-line ceiling
+
+
+def test_the_old_length_wording_is_gone_and_everything_else_is_kept():
+    from app.generation.prompts import PROMPT_REVISION
+
+    p = prompt(cycle=2, prior_explanations=["An earlier explanation."])
+    assert "two to four sentences" not in p and "Length:" not in p
+    assert PROMPT_REVISION == "r2"
+    assert FORMAT_INSTRUCTION in p  # the Markdown / fence instruction is kept
+    assert "<student_message>" in p and "An earlier explanation." in p and "Explanation cycle: 2" in p
+
+
+@pytest.mark.parametrize("strategy", STRATEGIES)
+def test_every_strategy_prompt_has_no_headings_instruction_and_the_final_line_instruction(strategy):
+    p = prompt(strategy=strategy)
+    assert "Do not use headings" in p and "Your last line must be" in p
+
+
+# --- strip_headings / trim / usable (S7b) ----------------------------------------------------------------------------------------
+
+OBSERVED_HEADING = "**Inheritance in Java**\n======================\n\nInheritance is a fundamental concept in object-oriented programming. The child class inherits from the parent class."
+OBSERVED_CUT = (
+    "**Inheritance in Java**\n======================\n\nInheritance is a fundamental concept in object-oriented programming "
+    "(OOP) that allows one class to inherit the properties and behavior of another class. The child class (subclass) "
+    "inherits the fields and methods of the parent class (superclass) and can also add new fields and methods or "
+    "override the ones inherited from the parent class.\n\nThe key rules of inheritance are"
+)
+
+
+def test_strip_headings_removes_the_observed_bold_title_with_its_equals_underline():
+    out = strip_headings(OBSERVED_HEADING)
+    assert out.startswith("Inheritance is a fundamental concept")
+    assert "====" not in out and "Inheritance in Java" not in out
+
+
+def test_strip_headings_removes_atx_headings_of_every_level():
+    out = strip_headings("# Title\n\nFirst sentence.\n\n### Example\n\nSecond sentence.\n###### Deep\nThird.")
+    assert out == "First sentence.\n\nSecond sentence.\nThird."
+
+
+def test_strip_headings_removes_setext_dash_underlines_with_the_title_above():
+    assert strip_headings("A Short Title\n-----\n\nBody text here.") == "Body text here."
+
+
+def test_strip_headings_removes_a_leading_bold_only_line():
+    assert strip_headings("**Loops in Java**\n\nA loop repeats code.") == "A loop repeats code."
+    assert strip_headings("**Loops in Java:**\n\nA loop repeats code.") == "A loop repeats code."
+
+
+def test_strip_headings_keeps_bold_text_that_is_not_a_leading_title_line():
+    text = "A loop repeats code. **Remember** the condition.\n\n**Check:** Why?"
+    assert strip_headings(text) == text
+    mid = "A loop repeats code.\n\n**Important**\n\nIt needs a condition."
+    assert strip_headings(mid) == mid  # only a LEADING bold-only line is a title
+
+
+def test_strip_headings_leaves_code_blocks_untouched():
+    code = "```java\n# not a heading\nint x = 1;\n=====\n-----\n### also code\n```"
+    text = f"Intro sentence.\n\n{code}\n\nDone."
+    assert strip_headings(text) == text
+
+
+def test_strip_headings_never_deletes_a_real_sentence_above_a_rule():
+    text = "This is a full sentence that ends properly.\n---\nNext part."
+    assert strip_headings(text) == text  # a sentence is not a title, so the rule is left alone
+
+
+def test_strip_headings_leaves_clean_text_alone_and_templates_unchanged():
+    assert strip_headings("A loop repeats code.\n\n**Check:** Why?") == "A loop repeats code.\n\n**Check:** Why?"
+    fb = TemplateFallback()
+    for topic in TOPIC_IDS:
+        for strategy in STRATEGIES:
+            for text in fb.variants(topic, strategy):
+                assert strip_headings(text) == text, (topic, strategy)
+                assert finalise(text, strategy) == text, (topic, strategy)
+
+
+def test_has_heading():
+    assert has_heading(OBSERVED_HEADING) and has_heading("# T\n\nBody.")
+    assert not has_heading("A loop repeats code.\n\n**Check:** Why?")
+    assert not has_heading("```java\n# comment\n```\n\nBody.")
+
+
+def test_trim_cuts_the_observed_truncation_back_to_the_last_full_sentence():
+    out = finalise(OBSERVED_CUT, "theory", truncated=True)
+    assert out.startswith("Inheritance is a fundamental concept")
+    assert "The key rules of inheritance are" not in out
+    prose = out.split("\n\n**Check:**")[0]
+    assert prose.endswith("inherited from the parent class.")
+    assert out.splitlines()[-1].startswith("**Check:**") and out.count("**Check:**") == 1
+
+
+def test_trim_keeps_a_cut_off_reply_whose_last_sentence_happens_to_be_complete():
+    text = "A loop repeats code. It needs a condition."
+    assert trim_to_last_sentence(text) == text
+
+
+def test_trim_with_no_complete_sentence_leaves_nothing_but_the_check_line():
+    out = finalise("A loop is a way to repeat", "theory", truncated=True)
+    assert out == "**Check:** In your own words, what is the main idea here?"
+    assert not usable("A loop is a way to repeat", "theory", truncated=True)
+
+
+def test_trim_understands_other_sentence_ends():
+    assert trim_to_last_sentence("Is that clear? Yes it is! And then") == "Is that clear? Yes it is!"
+    assert trim_to_last_sentence('He said "stop." Then more') == 'He said "stop."'
+    assert trim_to_last_sentence("A list.add(x) call is fine and then") == ""  # '.' inside a word is not a sentence end
+
+
+def test_unclosed_code_block_is_dropped_entirely_when_truncated():
+    cut = "Here is an example:\n\n```java\nclass A {\n    void f() {\n        System.out.println("
+    assert drop_unclosed_code(cut) == "Here is an example:"
+    out = finalise(cut, "example", truncated=True)
+    assert "```" not in out and "System.out" not in out
+    assert not usable(cut, "example", truncated=True)
+
+
+def test_a_closed_code_block_survives_the_trim_and_trailing_prose_is_cut():
+    cut = "Look:\n\n```java\nint x = 1;\n```\n\nIt declares x. Then the second sent"
+    out = finalise(cut, "example", truncated=True)
+    assert "```java\nint x = 1;\n```" in out and "It declares x." in out and "second sent" not in out
+    assert usable(cut, "example", truncated=True)
+
+
+def test_a_closed_block_with_nothing_after_it_is_kept_whole():
+    cut = "Intro sentence here.\n\n```java\nint x = 1;\n```"
+    assert trim_to_last_sentence(cut) == cut
+
+
+def test_a_non_truncated_reply_is_never_trimmed():
+    text = "A loop repeats code and it stops when the\n\n**Check:** Why?"
+    assert finalise(text, "theory", truncated=False) == text  # no sentence end before the Check, left alone
+    unclosed = "Look:\n\n```java\nint x = 1;"
+    out = finalise(unclosed, "example", truncated=False)
+    assert "int x = 1;" in out  # kept (ensure_check closes the fence); not dropped without the truncation flag
+
+
+def test_finalise_default_is_not_truncated_so_existing_callers_are_unchanged():
+    assert finalise("A loop repeats code. It stops.", "theory") == finalise("A loop repeats code. It stops.", "theory", False)
+
+
+def test_usable_true_for_a_good_reply():
+    assert usable(TEMPLATES.get("loops", "theory", 1), "theory")
+    assert usable(TEMPLATES.get("loops", "example", 1), "example")
+    assert usable("A loop repeats code. It stops when its condition is false.\n\n**Check:** Why?", "analogy")
+
+
+@pytest.mark.parametrize("text", ["", "   \n", "# Just A Heading", "**Loops in Java**\n=========", "<think>only thinking</think>"])
+def test_usable_false_for_empty_or_heading_only(text):
+    assert not usable(text, "theory")
+
+
+def test_usable_false_for_a_check_only_reply():
+    assert not usable("**Check:** What is a loop?", "theory")
+
+
+def test_usable_false_for_an_example_without_a_closed_java_block():
+    assert not usable("Loops repeat code. Here is how they look.\n\n**Check:** Why?", "example")
+    assert not usable("Loops repeat code.\n\n```\nint x = 1;\n```\n\n**Check:** Why?", "example")  # a plain fence is not java
+
+
+def test_usable_an_example_needs_a_prose_sentence_as_well_as_the_block():
+    assert not usable("Look:\n\n```java\nint x = 1;\n```\n\n**Check:** Why?", "example")
+    assert usable("Look:\n\n```java\nint x = 1;\n```\n\nIt declares x.\n\n**Check:** Why?", "example")
+
+
+def test_usable_sentences_inside_code_or_the_check_line_do_not_count():
+    assert not usable("```java\n// A comment. Another one.\n```\n\n**Check:** Is that clear? Yes?", "theory")
+
+
+def test_usable_judges_the_postprocessed_text_so_a_heading_plus_one_sentence_ships():
+    assert usable(OBSERVED_CUT, "theory", truncated=True)
