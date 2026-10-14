@@ -2,6 +2,7 @@
 
 | model (run date) | cold start | wall median | wall p95 | over 12 s | wall spread | TTFT median | tok/s median | truncated | empty | Check ok raw / final | 2-4 sentences raw / final | java fenced (example) | no unfenced code (others) | `<think>` raw / final | untagged leak raw / final | human rating (mean) |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| llama3.2:3b (2026-10-15) | 12.4 s | 6.9 s | 8.8 s | 0% | 1.6 s | 0.16 s | 12.1 | 100% | 0% | 0% / 100% | 79% / 79% | 33% | 100% | 0% / 0% | 0% / 0% | |
 | qwen3:4b (2026-10-15) | 14.4 s | 9.3 s | 11.9 s | 4% | 1.2 s | 0.19 s | 9.3 | 100% | 0% | 0% / 100% | 56% / 56% | 0% | 100% | 0% / 0% | 100% / 100% | |
 
 How to read this table:
