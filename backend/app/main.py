@@ -1,4 +1,4 @@
-"""Tutor service entry point (verified model load, /health, /topics, request validation).
+"""Tutor service entry point: verified model load, /health, /topics and POST /tutor/message.
 
 The classifier is a prototype proxy trained on synthetic answers, not a
 validated confusion detector.
@@ -7,7 +7,9 @@ validated confusion detector.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -15,7 +17,11 @@ from pydantic import BaseModel, ConfigDict
 
 from app.classifier.model import ModelLoadError, load_model
 from app.config import Settings
-from app.schemas import TutorRequest
+from app.escalation.engine import EngineConfig, default_episode_id
+from app.escalation.episode_log import utc_now
+from app.generation.adapters import LLMAdapter, MockAdapter, TemplateFallback
+from app.orchestrator import Deps, TurnError, TurnLogger, handle_turn
+from app.schemas import TutorRequest, TutorResponse
 from app.topics import public_topics
 
 logger = logging.getLogger("app")
@@ -43,8 +49,17 @@ class HealthResponse(BaseModel):
     model_version: str | None
 
 
-def create_app(models_dir: Path | None = None) -> FastAPI:
-    settings = Settings()
+def create_app(
+    models_dir: Path | None = None,
+    *,
+    settings: Settings | None = None,
+    adapter: LLMAdapter | None = None,
+    now: Callable[[], datetime] = utc_now,
+    new_episode_id: Callable[[], str] = default_episode_id,
+) -> FastAPI:
+    """`adapter`, `now` and `new_episode_id` are injection points for tests; `adapter` is used only
+    when LLM_PROVIDER is "mock"."""
+    settings = settings if settings is not None else Settings()
     root = Path(models_dir) if models_dir is not None else settings.MODELS_DIR
 
     @asynccontextmanager
@@ -58,6 +73,28 @@ def create_app(models_dir: Path | None = None) -> FastAPI:
         except ModelLoadError as exc:
             logger.error("model NOT loaded, starting degraded: %s", exc)
             app.state.model = None
+        # Our own template file: a broken one is a build defect, so a TemplateError here is NOT
+        # caught and startup fails loudly.
+        templates = TemplateFallback()
+        provider = settings.LLM_PROVIDER
+        app.state.adapter = (adapter or MockAdapter()) if provider == "mock" else None
+        turn_logger = TurnLogger(settings.TURN_LOG_PATH) if settings.TURN_LOG_PATH is not None else None
+        app.state.deps = (
+            None
+            if app.state.model is None
+            else Deps(
+                model=app.state.model,
+                cfg=EngineConfig.from_settings(settings),
+                templates=templates,
+                provider=provider,
+                adapter=app.state.adapter,
+                llm_timeout_s=settings.LLM_TIMEOUT_S,
+                weak_threshold=settings.WEAK_THRESHOLD,
+                now=now,
+                new_episode_id=new_episode_id,
+                turn_logger=turn_logger,
+            )
+        )
         yield
 
     app = FastAPI(title="Adaptive AI Voice Tutor: tutor service", lifespan=lifespan)
@@ -80,20 +117,21 @@ def create_app(models_dir: Path | None = None) -> FastAPI:
         # The service owns the topic list; `general` is accepted but never listed.
         return public_topics()
 
-    @app.post("/tutor/message")
-    def tutor_message(body: TutorRequest, request: Request) -> None:
-        # Order: invalid body -> 422 (FastAPI, before this runs); model not loaded
-        # -> 503; otherwise 501 (pipeline arrives in stage S6). The classifier is
-        # deliberately not called yet.
-        if getattr(request.app.state, "model", None) is None:
+    @app.post("/tutor/message", response_model=TutorResponse)
+    async def tutor_message(body: TutorRequest, request: Request) -> TutorResponse:
+        # Order: invalid body -> 422 (FastAPI, before this runs); model not loaded -> 503;
+        # otherwise the turn is handled. An unservable turn (impossible echoed state, history that
+        # contradicts the state) is a 422 from the orchestrator.
+        deps = getattr(request.app.state, "deps", None)
+        if deps is None:
             raise HTTPException(
                 status_code=503,
                 detail="classifier failed verification at startup; model not loaded",
             )
-        raise HTTPException(
-            status_code=501, detail="tutoring pipeline not implemented yet (stage S6)"
-        )
-
+        try:
+            return await handle_turn(body, deps)
+        except TurnError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
     return app
 
 

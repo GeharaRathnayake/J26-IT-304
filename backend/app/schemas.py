@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.topics import is_accepted_topic
 
@@ -58,7 +58,9 @@ class Profile(_Contract):
 
 
 class TutorRequest(_Contract):
-    request_id: str
+    # Non-empty: it is echoed into a response field the contract requires to be non-empty, and an empty
+    # id means a broken client (the frontend always sends a UUID).
+    request_id: str = Field(min_length=1)
     student_id: str
     session_id: str
     topic: str
@@ -122,3 +124,56 @@ class EpisodeLog(_Emitted):
     is_weak: bool
     weak_rule: str
     model_version: str
+
+# --- the tutor response (contract: TutorResponse in types.ts) ----------------------------------
+
+Action = Literal["explain", "resolved", "offer_new_cycle", "end_unresolved", "clarify"]
+
+
+class ConfusionResult(_Emitted):
+    label: Label
+    probability: float = Field(ge=0, le=1)
+    source: Source
+
+
+class LatencyBreakdown(_Emitted):
+    classify: float = Field(ge=0)
+    llm: float = Field(ge=0)
+    total: float = Field(ge=0)
+
+
+class ResponseMeta(_Emitted):
+    model_version: str
+    llm: str
+    latency_ms: LatencyBreakdown
+    fallback: bool | None = None  # always set by this service; optional in the contract
+
+
+class TutorResponse(_Emitted):
+    request_id: str = Field(min_length=1)
+    confusion: ConfusionResult
+    detected_request: Strategy | None
+    action: Action
+    strategy: Strategy | None
+    trigger: Trigger | None
+    response: str
+    updated_state: TutorState  # COMPLETE on every turn: the client stores it and echoes it back
+    episode_log: EpisodeLog | None
+    meta: ResponseMeta
+
+    @model_validator(mode="after")
+    def _contract_invariants(self):
+        # The frontend's own schema rejects these; failing here turns a demo dead-end into a loud
+        # server-side error.
+        ended = self.action in ("resolved", "end_unresolved")
+        if ended != (self.episode_log is not None):
+            raise ValueError("episode_log must be non-null if and only if the action is terminal")
+        if self.action == "explain" and (self.strategy is None or self.trigger is None):
+            raise ValueError("an explain reply needs a strategy and a trigger")
+        if self.action != "explain" and (self.strategy is not None or self.trigger is not None):
+            raise ValueError("strategy and trigger are set only for explain")
+        if self.action == "offer_new_cycle" and not self.updated_state.awaiting_cycle_confirmation:
+            raise ValueError("offer_new_cycle must set awaiting_cycle_confirmation")
+        if self.action == "clarify" and not self.updated_state.awaiting_cycle_confirmation:
+            raise ValueError("clarify must keep awaiting_cycle_confirmation true")
+        return self

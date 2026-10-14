@@ -1,7 +1,7 @@
 """POST /tutor/message: request validation against the frozen contract.
 
-A valid request gets 501 (pipeline not built yet). 503 means "model not loaded"; 422
-means the body is invalid. The classifier is not called in this stage.
+A valid request is served (200). 503 means "model not loaded"; 422 means the body is invalid.
+These tests are about request VALIDATION; the end-to-end behaviour is in test_tutor_message.py.
 """
 
 import copy
@@ -51,37 +51,37 @@ def post(client, body):
     return client.post("/tutor/message", json=body)
 
 
-# --- accepted (501) -----------------------------------------------------------------
+# --- accepted (200) -----------------------------------------------------------------
 
 
-def test_valid_first_message_is_501(client):
+def test_valid_first_message_is_served(client):
     r = post(client, valid_body())
-    assert r.status_code == 501
-    assert r.json() == {"detail": "tutoring pipeline not implemented yet (stage S6)"}
+    assert r.status_code == 200
+    assert r.json()["action"] == "explain"
 
 
 def test_general_topic_is_accepted(client):
-    assert post(client, valid_body(topic="general")).status_code == 501
+    assert post(client, valid_body(topic="general")).status_code == 200
 
 
-def test_valid_mid_episode_state_is_501(client):
-    assert post(client, valid_body(state=MID_EPISODE_STATE)).status_code == 501
+def test_valid_mid_episode_state_is_served(client):
+    assert post(client, valid_body(state=MID_EPISODE_STATE)).status_code == 200
 
 
-def test_profile_absent_null_and_valid_are_all_501(client):
+def test_profile_absent_null_and_valid_are_all_served(client):
     absent = valid_body()
     assert "profile" not in absent
-    assert post(client, absent).status_code == 501
-    assert post(client, valid_body(profile=None)).status_code == 501
+    assert post(client, absent).status_code == 200
+    assert post(client, valid_body(profile=None)).status_code == 200
     profile = {"strategy_stats": {"theory": {"uses": 2, "wins": 1}}, "weak_topics": ["loops"]}
-    assert post(client, valid_body(profile=profile)).status_code == 501
-    assert post(client, valid_body(profile={"strategy_stats": {}, "weak_topics": []})).status_code == 501
+    assert post(client, valid_body(profile=profile)).status_code == 200
+    assert post(client, valid_body(profile={"strategy_stats": {}, "weak_topics": []})).status_code == 200
 
 
 def test_extra_unknown_fields_are_ignored_not_rejected(client):
     body = valid_body(state=copy.deepcopy(MID_EPISODE_STATE), future_field="x")
     body["state"]["future_state_field"] = {"a": 1}
-    assert post(client, body).status_code == 501
+    assert post(client, body).status_code == 200
 
 
 # --- rejected (422) -----------------------------------------------------------------
@@ -140,11 +140,11 @@ def test_message_with_surrounding_whitespace_survives_validation_unchanged():
 
 
 def test_padded_message_is_accepted_over_http(client):
-    assert post(client, valid_body(message="  Hello  ")).status_code == 501
+    assert post(client, valid_body(message="  Hello  ")).status_code == 200
 
 
 def test_long_message_has_no_length_limit(client):
-    assert post(client, valid_body(message="word " * 20000)).status_code == 501
+    assert post(client, valid_body(message="word " * 20000)).status_code == 200
 
 
 # --- degraded app ----------------------------------------------------------------------

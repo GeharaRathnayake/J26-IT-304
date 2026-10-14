@@ -202,8 +202,12 @@ def next_action(
     message: str,
     cfg: EngineConfig = EngineConfig(),
     new_episode_id: Callable[[], str] = default_episode_id,
+    request_is_confusion: bool = False,
 ) -> Decision:
-    """Decide what the tutor does next. `state` is None on the first message of a topic."""
+    """Decide what the tutor does next. `state` is None on the first message of a topic.
+
+    request_is_confusion: the caller says the RULE layer judged this message confused. See the
+    comment at the Tier 2 branch."""
     if label not in ("confused", "understood"):
         raise ValueError(f"unknown label: {label!r}")
     if request is not None and request not in _STRATEGIES:
@@ -225,7 +229,21 @@ def next_action(
         return Decision("clarify", None, None, _with(state))  # flag stays True
 
     if request is not None:  # Tier 2
-        return _explain(state, request, "request")
+        # `trigger` answers WHY a delivery happened; the strategy records WHICH was chosen.
+        # "I don't understand, explain the theory again" happened because of confusion, and
+        # `counted_strategies` / `is_weak` measure difficulty, so it must count. Rule-layer
+        # confusion only, never the model's: the model scores "that makes sense" at 0.99
+        # confused, so letting model-confusion override a request would turn nearly every request
+        # into confusion and inflate `is_weak`. Rules are the high-precision signal; only they
+        # earn this override. Do not "improve" this by including the model (the caller passes
+        # request_is_confusion=True only for rule-sourced confusion).
+        # The repeat case: a strategy already delivered as a COUNTED delivery in this cycle stays
+        # "request", or counting it again would repeat a strategy within the cycle and break the
+        # four-per-cycle arithmetic the cycle derivation depends on.
+        trigger: Trigger = "request"
+        if request_is_confusion and request not in {u.strategy for u in current_cycle_slots(state)}:
+            trigger = "confusion"
+        return _explain(state, request, trigger)
 
     if label == "understood" and state.strategies_used:
         return Decision(

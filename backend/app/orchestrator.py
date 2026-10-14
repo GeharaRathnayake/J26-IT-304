@@ -1,0 +1,229 @@
+"""One tutoring turn, end to end: classify, decide, generate, log.
+
+The classifier is a prototype proxy trained on synthetic answers (not a validated confusion
+detector); this module only wires its output into the escalation engine.
+
+STATELESS BY DECISION (correction C5). Nothing keyed by episode_id, session_id or student_id may
+outlive a request. The only process-lifetime state (held in `Deps`) is the model, the rules, the
+templates and the adapter. A restart mid-episode loses nothing because the client echoes the state.
+
+C2: the classifier sees the CURRENT message only, raw. Never history, the previous tutor turn or a
+concatenation: the model was trained on single answers, and any other input is out of distribution.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import time
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+from pydantic import ValidationError
+
+from app.classifier.hybrid import classify
+from app.classifier.model import LoadedModel
+from app.escalation.engine import EngineConfig, InvalidStateError, default_episode_id, next_action
+from app.escalation.episode_log import EpisodeLogError, build_episode_log, utc_now
+from app.escalation.request_detector import detect_request
+from app.generation import fixed_copy
+from app.generation.adapters import LLMAdapter, TemplateFallback
+from app.generation.postprocess import finalise
+from app.generation.prompts import build_prompt
+from app.schemas import (
+    ConfusionResult,
+    LatencyBreakdown,
+    ResponseMeta,
+    TutorRequest,
+    TutorResponse,
+)
+
+logger = logging.getLogger("app.orchestrator")
+
+
+class TurnError(Exception):
+    """A turn that cannot be served; the route maps it to an HTTP status."""
+
+    def __init__(self, status_code: int, detail: str) -> None:
+        super().__init__(detail)
+        self.status_code = status_code
+        self.detail = detail
+
+
+class TurnLogger:
+    """Opt-in per-turn research log (R4): one JSON line per turn. A failed write never fails a turn."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = Path(path)
+
+    def __call__(self, record: dict[str, Any]) -> None:
+        try:
+            with open(self.path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+        except Exception as exc:  # the turn must still succeed
+            logger.error("turn log write failed (%s); continuing", type(exc).__name__)
+
+
+@dataclass
+class Deps:
+    """Process-lifetime, read-only collaborators. Injected so tests stay deterministic."""
+
+    model: LoadedModel
+    cfg: EngineConfig
+    templates: TemplateFallback
+    provider: str  # "template" | "mock"
+    adapter: LLMAdapter | None = None
+    llm_timeout_s: float = 8.0
+    weak_threshold: int = 3
+    now: Callable[[], datetime] = utc_now
+    new_episode_id: Callable[[], str] = default_episode_id
+    turn_logger: Callable[[dict[str, Any]], None] | None = None
+
+
+def _ms(start: float, end: float) -> float:
+    return max(0.0, (end - start) * 1000.0)
+
+
+def _fixed_text(action: str, winning_strategy: str | None) -> str:
+    if action == "offer_new_cycle":
+        return fixed_copy.OFFER_NEW_CYCLE
+    if action == "end_unresolved":
+        return fixed_copy.END_UNRESOLVED
+    if action == "clarify":
+        return fixed_copy.CLARIFY
+    return fixed_copy.resolved_text(winning_strategy)  # resolved
+
+
+def _consecutive_student_turns(history) -> int:
+    return sum(1 for prev, cur in zip(history, history[1:]) if prev.role == "student" and cur.role == "student")
+
+
+async def _explain_text(req: TutorRequest, deps: Deps, strategy: str, state) -> tuple[str, bool, float]:
+    """Returns (text, fallback, llm_ms)."""
+    started = time.perf_counter()
+    if deps.provider == "template":
+        text = deps.templates.get(req.topic, strategy, state.cycle)
+        return text, True, _ms(started, time.perf_counter())
+    try:
+        prompt = build_prompt(
+            topic=req.topic,
+            strategy=strategy,
+            cycle=state.cycle,
+            student_message=req.message,
+            prior_explanations=list(state.prior_explanations),
+        )
+        raw = await asyncio.wait_for(deps.adapter.complete(prompt, deps.llm_timeout_s), deps.llm_timeout_s)
+        text = finalise(raw, strategy)
+        return text, False, _ms(started, time.perf_counter())
+    except Exception as exc:  # any failure or timeout: serve the template, say so, never the student text
+        logger.warning("LLM generation failed (%s); serving the template fallback", type(exc).__name__)
+        text = deps.templates.get(req.topic, strategy, state.cycle)
+        return text, True, _ms(started, time.perf_counter())
+
+
+async def handle_turn(req: TutorRequest, deps: Deps) -> TutorResponse:
+    t0 = time.perf_counter()
+    detected = detect_request(req.message)
+
+    # Classify the current message only, raw (C2).
+    c0 = time.perf_counter()
+    result = classify(deps.model, req.message)
+    classify_ms = _ms(c0, time.perf_counter())
+
+    # Confusion override (lead ruling): see the comment in the engine's Tier 2 branch. RULE-layer
+    # confusion only; never the model's.
+    request_is_confusion = (
+        detected is not None and result.source == "rule" and result.label == "confused"
+    )
+    try:
+        decision = next_action(
+            req.state, result.label, detected, req.message, deps.cfg, deps.new_episode_id,
+            request_is_confusion=request_is_confusion,
+        )
+    except InvalidStateError as exc:
+        raise TurnError(422, str(exc)) from exc
+
+    state = decision.updated_state
+    consecutive = _consecutive_student_turns(req.history)
+    if consecutive:
+        # A failed send followed by a retry leaves these behind. Designed flow: accepted. Never the text.
+        logger.warning("episode %s: %d consecutive student turn(s) in history", state.episode_id, consecutive)
+
+    # Text.
+    if decision.action == "explain":
+        text, fallback, llm_ms = await _explain_text(req, deps, decision.strategy, state)
+        # The engine leaves prior_explanations alone on purpose; the prompt builder needs it from
+        # cycle 2 to avoid repeating itself (claim C3).
+        state = state.model_copy(update={"prior_explanations": [*state.prior_explanations, text]})
+    else:
+        text = _fixed_text(decision.action, decision.winning_strategy)
+        fallback = deps.provider == "template"
+        llm_ms = 0.0
+
+    # Terminal: the episode log, from the ECHOED state and history.
+    episode_log = None
+    if decision.action in ("resolved", "end_unresolved"):
+        try:
+            episode_log = build_episode_log(
+                decision=decision,
+                state=req.state,
+                history=req.history,
+                current_reaction=result,
+                classify_fn=lambda t: classify(deps.model, t),
+                student_id=req.student_id,
+                topic=req.topic,
+                model_version=deps.model.version,
+                weak_threshold=deps.weak_threshold,
+                now=deps.now,
+            )
+        except (EpisodeLogError, ValidationError) as exc:
+            raise TurnError(422, f"cannot build the episode log: {exc}") from exc
+
+    response = TutorResponse(
+        request_id=req.request_id,
+        confusion=ConfusionResult(label=result.label, probability=result.probability, source=result.source),
+        detected_request=detected,
+        action=decision.action,
+        strategy=decision.strategy,
+        trigger=decision.trigger,
+        response=text,
+        updated_state=state,
+        episode_log=episode_log,
+        meta=ResponseMeta(
+            model_version=deps.model.version,
+            llm=deps.provider,
+            latency_ms=LatencyBreakdown(
+                classify=classify_ms, llm=llm_ms, total=_ms(t0, time.perf_counter())
+            ),
+            fallback=fallback,
+        ),
+    )
+
+    if deps.turn_logger is not None:
+        preceding = next((t.text for t in reversed(req.history) if t.role == "tutor"), None)
+        deps.turn_logger(
+            {
+                "ts": deps.now().isoformat(),
+                "episode_id": state.episode_id,
+                "student_id": req.student_id,
+                "topic": req.topic,
+                "message": req.message,
+                "preceding_tutor_turn": preceding,
+                "label": result.label,
+                "probability": result.probability,
+                "source": result.source,
+                "matched_phrase": result.matched_phrase,
+                "model_label": result.model_label,
+                "disagreement": result.model_label != result.label,
+                "detected_request": detected,
+                "action": decision.action,
+                "strategy": decision.strategy,
+                "trigger": decision.trigger,
+                "cycle": state.cycle,
+            }
+        )
+    return response

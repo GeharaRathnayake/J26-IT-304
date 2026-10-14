@@ -443,3 +443,58 @@ def test_default_episode_id_shape():
 
     a, b = default_episode_id(), default_episode_id()
     assert a.startswith("ep_") and len(a) == 11 and a != b
+
+# --- the confusion override (lead ruling, S6b): request_is_confusion ----------------------------------
+
+
+def override(st, request, message="hmm", label="confused"):
+    return next_action(st, label, request, message, CFG, new_episode_id=eid, request_is_confusion=True)
+
+
+def test_override_first_message_request_becomes_a_counted_confusion_delivery():
+    d = override(None, "theory")
+    assert (d.action, d.strategy, d.trigger) == ("explain", "theory", "confusion")
+    assert pairs(d.updated_state) == [("theory", "confusion")]
+
+
+def test_override_is_off_by_default_so_a_plain_request_stays_a_request():
+    d = next_action(None, "confused", "theory", "hmm", CFG, new_episode_id=eid)
+    assert d.trigger == "request"
+
+
+def test_override_applies_when_the_strategy_is_unused_in_the_current_cycle():
+    st = state(used=[("theory", "default")])
+    d = override(st, "analogy")
+    assert (d.strategy, d.trigger) == ("analogy", "confusion")
+    # and it is a real slot now: the default order skips it
+    d2 = next_action(d.updated_state, "confused", None, "hmm", CFG)
+    assert (d2.strategy, d2.trigger) == ("example", "confusion")
+
+
+def test_documented_limitation_repeat_of_a_counted_strategy_stays_request():
+    # Counting it again would repeat a strategy within the cycle and break the four-per-cycle
+    # arithmetic the cycle derivation depends on, so the override does not apply.
+    st = state(used=[("theory", "default")])
+    d = override(st, "theory")
+    assert (d.strategy, d.trigger) == ("theory", "request")
+    assert len([u for u in d.updated_state.strategies_used if u.trigger != "request"]) == 1
+
+
+def test_override_does_not_break_the_four_per_cycle_arithmetic():
+    st = state(used=CYCLE1)  # every strategy already counted in cycle 1
+    for request in DEFAULT_ORDER:
+        d = override(st, request)
+        assert d.trigger == "request"
+    # the next confused turn still offers the new cycle
+    assert step(override(st, "example").updated_state).action == "offer_new_cycle"
+
+
+def test_override_looks_at_the_current_cycle_only():
+    st = state(cycle=2, used=CYCLE1 + [("example", "confusion")])
+    assert override(st, "theory").trigger == "confusion"  # theory was used in cycle 1, not cycle 2
+    assert override(st, "example").trigger == "request"  # example is used in cycle 2
+
+
+def test_override_never_bypasses_a_pending_offer():
+    d = override(state(used=CYCLE1, awaiting=True), "example", message="show me")
+    assert d.action == "clarify" and d.updated_state.awaiting_cycle_confirmation is True

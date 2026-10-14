@@ -1,0 +1,25 @@
+{
+  "request_id": "b6f2c1e0-0000-4000-8000-000000000001",
+  "confusion": { "label": "confused", "probability": 0.81, "source": "rule" },
+  "detected_request": null,
+  "action": "explain",
+  "strategy": "example",
+  "trigger": "confusion",
+  "response": "Let's look at an example:\n\n```java\nclass Animal {\n    Animal(String name) { this.name = name; }\n}\n\nclass Dog extends Animal {\n    Dog(String name) {\n        super(name);\n    }\n}\n```\n\nThe `super(name)` call runs the parent constructor before the child finishes building.\n\n**Check:** What do you think would happen if we removed the `super(name)` line?",
+  "updated_state": {
+    "episode_id": "ep_77d1",
+    "cycle": 1,
+    "strategies_used": [
+      { "strategy": "theory", "trigger": "default" },
+      { "strategy": "example", "trigger": "confusion" }
+    ],
+    "awaiting_cycle_confirmation": false,
+    "prior_explanations": ["Inheritance lets a class...", "Let's look at an example..."]
+  },
+  "episode_log": null,
+  "meta": {
+    "model_version": "clf-v1.0.0",
+    "llm": "ollama:llama3.2:3b",
+    "latency_ms": { "classify": 6, "llm": 1840, "total": 1902 }
+  }
+}

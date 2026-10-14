@@ -36,6 +36,7 @@ USER root
 COPY requirements-dev.txt ./
 RUN pip install --no-cache-dir -r requirements-dev.txt
 COPY --chown=tutor:tutor tests ./tests
+COPY --chown=tutor:tutor scripts ./scripts
 # Tests build their own temp copies; the image's models/ is never modified.
 RUN chown tutor:tutor /srv/backend
 USER tutor

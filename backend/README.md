@@ -82,6 +82,33 @@ docker compose down
 - If the host port is unavailable, `API_PORT` overrides it for Docker only
   (`$env:API_PORT='8200'; docker compose up -d api`); the frontend still expects 8001.
 - `models/` must stay byte-exact (`.gitattributes` keeps Git from rewriting line endings).
+## The tutoring endpoint
+
+`POST /tutor/message` classifies the student's message (the hybrid: explicit phrases first, then
+the model, a **prototype proxy trained on synthetic answers**, not a validated confusion
+detector), decides the next move with the escalation engine, and returns a full `TutorResponse`
+(`frontend/src/features/tutor/api/types.ts`). It is **stateless**: the client echoes
+`updated_state` and `history` each turn, so a restart mid-episode loses nothing.
+
+| Setting (env var) | Default | Meaning |
+|---|---|---|
+| `LLM_PROVIDER` | `template` | `template` serves the bundled template replies (`meta.fallback: true` on every turn). `mock` uses a test adapter. `ollama` arrives in a later stage; any other value fails at startup. |
+| `LLM_TIMEOUT_S` | `8.0` | Cutoff for a generation call. Never derive it from the 3 s latency target. |
+| `TURN_LOG_PATH` | unset | Opt-in per-turn research log (see below). |
+| `WEAK_THRESHOLD` | `3` | `is_weak` when counted strategies reach this or the episode ends unresolved. |
+| `MAX_CYCLES` | `2` | Explanation cycles per episode. |
+
+**Per-turn research log (off by default).** When `TURN_LOG_PATH` is set, one JSON line per turn is
+appended (message, the preceding tutor turn, label/probability/source, whether the model and the
+rules disagreed, and the decision). It records **real student messages, so it needs ethics approval
+before it is switched on.** A failed write is logged at ERROR and never fails the turn.
+
+**Smoke test** (a full episode against a running server; exits non-zero on any contract violation):
+
+```powershell
+.\.venv\Scripts\python -m app                              # one shell
+.\.venv\Scripts\python scripts\smoke_episode.py            # another shell
+```
 ## Behaviour
 
 Expected: `{"status":"ok","model_loaded":true,"llm_reachable":false,"model_version":"clf-v1.0.0"}`.
