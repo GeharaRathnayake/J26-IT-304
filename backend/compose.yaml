@@ -1,0 +1,21 @@
+services:
+  api:
+    build:
+      context: .
+      target: runtime
+    ports:
+      # Localhost only. Host port defaults to 8000; set API_PORT if Windows has reserved it
+      # (see `netsh int ipv4 show excludedportrange protocol=tcp`).
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    # MODEL_VERSION and MODELS_DIR are supported but unset: the defaults apply.
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./app
+          target: /srv/backend/app
+
+  test:
+    build:
+      context: .
+      target: test
+    command: ["python", "-m", "pytest"]

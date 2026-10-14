@@ -12,7 +12,33 @@ endpoint, rules or LLM yet.
 > synthetic answers. It has never seen a real student message and is **not** a validated
 > confusion detector (for example it scores `"that makes sense"` at ~0.99 confused).
 
-## Setup
+## Build, run, test with Docker (primary)
+
+Run from `dev/backend/`. The image is `python:3.13.16-slim` (pinned by digest), the exact
+Python the artifact was trained on, with scikit-learn 1.9.1.
+
+```powershell
+docker compose build          # both targets: runtime (api) and test
+docker compose run --rm test  # python -m pytest inside the test image
+docker compose up -d api      # serves on 127.0.0.1:8000 (localhost only)
+curl.exe http://127.0.0.1:8000/health
+docker compose down
+```
+
+> **Build the image in advance on any demo machine.** Building needs a network (base image
+> and pip); running does not.
+
+- The container runs as a non-root user. Its `HEALTHCHECK` passes only if `/health`
+  returns `"status": "ok"`, so a degraded start (the process still exits 0) shows as
+  `unhealthy` in `docker ps`.
+- The `runtime` target holds `app/` and `models/` only; the `test` target adds dev
+  dependencies and `tests/`.
+- **Port 8000 reserved by Windows?** If `docker compose up` fails with "forbidden by its
+  access permissions", check `netsh int ipv4 show excludedportrange protocol=tcp` and use
+  another host port: `$env:API_PORT='8200'; docker compose up -d api`.
+- `models/` must stay byte-exact (`.gitattributes` keeps Git from rewriting line endings).
+
+## Local venv (fallback)
 
 Requires Python 3.13 and scikit-learn **exactly 1.9.1** (the version the artifact was
 pickled with). Run from `dev/backend/`:
@@ -22,14 +48,11 @@ py -3.13 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements-dev.txt     # runtime pins + pytest + httpx
 python -c "import sklearn; print(sklearn.__version__)"   # must print 1.9.1
-```
-
-## Run
-
-```powershell
 python -m uvicorn app.main:app --port 8000
 curl.exe http://127.0.0.1:8000/health
 ```
+
+## Behaviour
 
 Expected: `{"status":"ok","model_loaded":true,"llm_reachable":false,"model_version":"clf-v1.0.0"}`.
 `llm_reachable` is hard-coded `false` until the Ollama stage.
