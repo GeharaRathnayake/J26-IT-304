@@ -14,3 +14,7 @@ class Settings(BaseSettings):
     HOST: str = "127.0.0.1"
     # 8001 is fixed by the frontend's committed default (VITE_TUTOR_URL=http://localhost:8001).
     PORT: int = 8001
+
+    # Escalation engine (S4). Tier 3 (personalised ordering) is a seam only, off in PP1.
+    MAX_CYCLES: int = 2
+    PERSONALISE: bool = False
