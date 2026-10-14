@@ -8,6 +8,7 @@ the classifier is accurate on real students.
 import hashlib
 import json
 import logging
+import os
 import shutil
 from pathlib import Path
 
@@ -67,7 +68,7 @@ def test_real_hashes_match_metadata():
     for name in ("pipeline.joblib", "rules.yaml"):
         raw = (REAL_DIR / name).read_bytes()
         assert hashlib.sha256(raw).hexdigest() == meta["files"][name], name
-        assert model_mod._sha256(REAL_DIR / name) == meta["files"][name], name
+        assert model_mod._sha256((REAL_DIR / name).read_bytes()) == meta["files"][name], name
     assert b"\r" not in (REAL_DIR / "rules.yaml").read_bytes()
 
 def test_real_model_passes_class_order_assertion(record_property):
@@ -215,3 +216,47 @@ def test_settings_defaults_are_host_127_and_port_8001(monkeypatch):
     settings = Settings(_env_file=None)
     assert settings.PORT == 8001
     assert settings.HOST == "127.0.0.1"
+
+
+# --- the pipeline is unpickled from the bytes that were hashed ----------------------
+
+
+def test_joblib_load_receives_verified_bytes_not_a_path(monkeypatch):
+    real_load = joblib.load
+    received = []
+
+    def spy(arg, *a, **k):
+        received.append(arg)
+        return real_load(arg, *a, **k)
+
+    monkeypatch.setattr(joblib, "load", spy)
+    loaded = load_model(REAL_DIR)  # still loads and passes the class-order check
+
+    assert len(received) == 1
+    assert not isinstance(received[0], (str, os.PathLike))
+    assert hasattr(received[0], "read")  # file-like object over the hashed bytes
+    assert loaded.predict_confused(CONFUSED_TEXT) > 0.5
+
+
+def test_pipeline_swapped_on_disk_after_hash_is_never_read(tmp_path, monkeypatch):
+    """Temp copy only. The disk file is corrupted right after it is read for hashing;
+    the model must still load from the verified bytes, proving no second disk read."""
+    models = _copy_models(tmp_path)
+    pipeline_path = models / "clf-v1.0.0" / "pipeline.joblib"
+    real_read_bytes = Path.read_bytes
+    swapped = []
+
+    def read_then_swap(self):
+        data = real_read_bytes(self)
+        if self.name == "pipeline.joblib":
+            self.write_bytes(b"swapped after hashing: not a pickle")  # corrupt on disk
+            swapped.append(self)
+        return data
+
+    monkeypatch.setattr(Path, "read_bytes", read_then_swap)
+    loaded = load_model(models / "clf-v1.0.0")
+    monkeypatch.undo()
+
+    assert swapped == [pipeline_path]
+    assert pipeline_path.read_bytes() == b"swapped after hashing: not a pickle"
+    assert_class_order(loaded.predict_confused)

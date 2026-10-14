@@ -15,6 +15,7 @@ a model that failed any check must never be stored or used.
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import logging
 import time
@@ -25,6 +26,9 @@ from typing import Any
 
 import joblib
 import sklearn
+
+from app.classifier.errors import ModelLoadError
+from app.classifier.rules import Rules, parse_rules
 
 logger = logging.getLogger(__name__)
 
@@ -43,10 +47,6 @@ ASSERT_BOUND = 0.5  # correct must score < bound; confused must score > bound
 EXPECTED_PROBA_INDEX_CONFUSED = 1
 
 
-class ModelLoadError(RuntimeError):
-    """The artifact failed verification; the model must not be used."""
-
-
 @dataclass(frozen=True)
 class LoadedModel:
     pipeline: Any
@@ -54,17 +54,18 @@ class LoadedModel:
     version: str
     threshold: float
     proba_index_confused: int
+    rules: Rules
 
     def predict_confused(self, text: str) -> float:
         """P(confused) for raw text. Proxy score from a synthetic-data classifier."""
         return float(self.pipeline.predict_proba([text])[0, self.proba_index_confused])
 
 
-def _sha256(path: Path) -> str:
+def _sha256(data: bytes) -> str:
     # Raw bytes for every file, so `sha256sum` gives the published value. A
     # line-ending rewrite (e.g. core.autocrlf) is therefore caught, not tolerated;
     # backend/.gitattributes (`models/** -text`) stops Git doing that.
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    return hashlib.sha256(data).hexdigest()
 
 
 def assert_class_order(
@@ -132,13 +133,18 @@ def load_model(model_dir: Path) -> LoadedModel:
             f"artifact requires exactly {expected_sklearn}"
         )
 
-    # 3. hash both files BEFORE unpickling anything
+    # 3. hash both files BEFORE unpickling or parsing anything. Each is read once;
+    #    Both files are later used from these same bytes (rules.yaml is parsed,
+    #    pipeline.joblib is unpickled from memory), so neither can change between
+    #    check and use.
+    file_bytes: dict[str, bytes] = {}
     for name in ("pipeline.joblib", "rules.yaml"):
         path = model_dir / name
         try:
-            actual = _sha256(path)
+            file_bytes[name] = path.read_bytes()
         except OSError as exc:
             raise ModelLoadError(f"cannot read {name}: {exc!r}") from exc
+        actual = _sha256(file_bytes[name])
         expected = expected_hashes.get(name)
         if actual != expected:
             raise ModelLoadError(
@@ -146,9 +152,16 @@ def load_model(model_dir: Path) -> LoadedModel:
             )
         logger.info("hash OK %s sha256=%s", name, actual)
 
-    # 4. only now unpickle
+    # 3b. parse the rule layer from the bytes that were just hashed
+    rules = parse_rules(file_bytes["rules.yaml"])
+    logger.info(
+        "rules %s: %d confusion, %d understanding",
+        rules.version, len(rules.confusion_phrases), len(rules.understanding_phrases),
+    )
+
+    # 4. only now unpickle, from the verified bytes, never by re-opening the file
     try:
-        pipeline = joblib.load(model_dir / "pipeline.joblib")
+        pipeline = joblib.load(io.BytesIO(file_bytes["pipeline.joblib"]))
     except Exception as exc:  # unpickling can raise almost anything
         raise ModelLoadError(f"cannot unpickle pipeline.joblib: {exc!r}") from exc
 
@@ -169,6 +182,7 @@ def load_model(model_dir: Path) -> LoadedModel:
         version=version,
         threshold=threshold,
         proba_index_confused=proba_index,
+        rules=rules,
     )
 
     # 6. class-order assertion on raw text
