@@ -18,3 +18,5 @@ class Settings(BaseSettings):
     # Escalation engine (S4). Tier 3 (personalised ordering) is a seam only, off in PP1.
     MAX_CYCLES: int = 2
     PERSONALISE: bool = False
+    # Episode log (S5): is_weak when counted_strategies >= WEAK_THRESHOLD or the episode ended unresolved.
+    WEAK_THRESHOLD: int = 3

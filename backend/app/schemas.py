@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.topics import is_accepted_topic
 
@@ -82,3 +82,43 @@ class TutorRequest(_Contract):
         if not v.strip():
             raise ValueError("message must not be empty or whitespace-only")
         return v
+
+# --- response models (contract: EpisodeLog / Delivery in types.ts) --------------------------
+# extra="forbid": the service must never emit a field the contract lacks.
+
+Label = Literal["confused", "understood"]
+Source = Literal["rule", "model"]
+Outcome = Literal["resolved", "end_unresolved"]
+
+
+class _Emitted(BaseModel):
+    model_config = ConfigDict(extra="forbid", protected_namespaces=())
+
+
+class Delivery(_Emitted):
+    seq: int = Field(ge=1)
+    strategy: Strategy
+    trigger: Trigger
+    cycle: int = Field(ge=1)
+    student_label: Label
+    probability: float = Field(ge=0, le=1)
+    source: Source
+
+
+class EpisodeLog(_Emitted):
+    schema_version: Literal["1.0"]
+    episode_id: str = Field(min_length=1)
+    student_id: str = Field(min_length=1)
+    topic: str = Field(min_length=1)
+    started_at: str
+    ended_at: str
+    outcome: Outcome
+    cycles: int = Field(ge=1)
+    deliveries: list[Delivery]
+    counted_strategies: int = Field(ge=0)
+    requested_strategies: int = Field(ge=0)
+    winning_strategy: Strategy | None
+    winning_combination: list[Strategy]
+    is_weak: bool
+    weak_rule: str
+    model_version: str
