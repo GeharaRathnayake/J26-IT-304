@@ -1,4 +1,4 @@
-"""Tutor service entry point (S1: verified model load and /health only).
+"""Tutor service entry point (verified model load, /health, /topics, request validation).
 
 The classifier is a prototype proxy trained on synthetic answers, not a
 validated confusion detector.
@@ -10,11 +10,13 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 
 from app.classifier.model import ModelLoadError, load_model
 from app.config import Settings
+from app.schemas import TutorRequest
+from app.topics import public_topics
 
 logger = logging.getLogger("app")
 
@@ -71,6 +73,25 @@ def create_app(models_dir: Path | None = None) -> FastAPI:
             # Hard-coded until the Ollama stage adds a real reachability probe.
             llm_reachable=False,
             model_version=model.version if model_loaded else None,
+        )
+
+    @app.get("/topics")
+    def topics() -> list[dict[str, str]]:
+        # The service owns the topic list; `general` is accepted but never listed.
+        return public_topics()
+
+    @app.post("/tutor/message")
+    def tutor_message(body: TutorRequest, request: Request) -> None:
+        # Order: invalid body -> 422 (FastAPI, before this runs); model not loaded
+        # -> 503; otherwise 501 (pipeline arrives in stage S6). The classifier is
+        # deliberately not called yet.
+        if getattr(request.app.state, "model", None) is None:
+            raise HTTPException(
+                status_code=503,
+                detail="classifier failed verification at startup; model not loaded",
+            )
+        raise HTTPException(
+            status_code=501, detail="tutoring pipeline not implemented yet (stage S6)"
         )
 
     return app

@@ -1,2 +1,3 @@
 # Artifact bytes are SHA-256 verified at startup; Git must never rewrite their line endings
 models/** -text
+tests/contract_fixtures/** -text
