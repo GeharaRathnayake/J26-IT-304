@@ -6,3 +6,4 @@
 !models/clf-*/metadata.json
 !models/clf-*/pipeline.joblib
 !models/clf-*/rules.yaml
+.coverage

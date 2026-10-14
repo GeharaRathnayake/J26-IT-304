@@ -58,6 +58,11 @@ _REQUEST_PATTERNS: tuple[tuple[Strategy, tuple[str, ...]], ...] = (
     ("theory", ("define", "explain the concept", "explain the theory")),
 )
 
+# A hedge anywhere in the message means "unclear", checked BEFORE accept and decline.
+# "unclear" costs one re-ask and corrupts nothing; a false accept adds a delivery and a
+# cycle to the episode log, and a false decline ends the episode. Not a general negation
+# guard: one detector's ambiguous branch doing its job.
+_HEDGE = ("not sure", "maybe", "i guess", "dunno")
 _ACCEPT = ("yes", "sure", "okay", "ok", "again", "explain it another way")
 _DECLINE = ("no", "move on", "skip", "later")
 
@@ -69,6 +74,7 @@ def _whole_word(phrase: str) -> re.Pattern:
 _COMPILED_REQUESTS = tuple(
     (strategy, tuple(_whole_word(p) for p in patterns)) for strategy, patterns in _REQUEST_PATTERNS
 )
+_COMPILED_HEDGE = tuple(_whole_word(p) for p in _HEDGE)
 _COMPILED_ACCEPT = tuple(_whole_word(p) for p in _ACCEPT)
 _COMPILED_DECLINE = tuple(_whole_word(p) for p in _DECLINE)
 
@@ -83,8 +89,10 @@ def detect_request(message: str) -> Strategy | None:
 
 
 def detect_cycle_intent(message: str) -> CycleIntent:
-    """Answer to "explain it another way?". Accept is checked before decline."""
+    """Answer to "explain it another way?". Hedge first, then accept, then decline."""
     text = normalise(message)
+    if any(rx.search(text) for rx in _COMPILED_HEDGE):
+        return "unclear"
     if any(rx.search(text) for rx in _COMPILED_ACCEPT):
         return "accept"
     if any(rx.search(text) for rx in _COMPILED_DECLINE):

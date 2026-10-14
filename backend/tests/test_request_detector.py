@@ -153,7 +153,26 @@ def test_cycle_intent_whole_word():
     assert detect_cycle_intent("okayish") == "unclear"
 
 
-def test_documented_wrong_not_sure_reads_as_accept():
-    # 'sure' is an accept word, so "I'm not sure" accepts a new cycle. The cost is one more
-    # explanation for an uncertain student, not a corrupted weakness record.
-    assert detect_cycle_intent("I'm not sure") == "accept"
+@pytest.mark.parametrize(
+    "message, intent",
+    [
+        ("I'm not sure", "unclear"),
+        ("sure", "accept"),
+        ("not sure, maybe later", "unclear"),
+        ("yes please", "accept"),
+        ("maybe", "unclear"),
+        ("dunno", "unclear"),
+        ("I guess", "unclear"),
+        ("yes, I guess", "unclear"),  # a hedge anywhere wins over accept
+        ("no, maybe", "unclear"),  # ... and over decline
+        ("Not   SURE", "unclear"),  # same normalisation as the rule layer
+    ],
+)
+def test_cycle_intent_hedges_are_unclear(message, intent):
+    assert detect_cycle_intent(message) == intent
+
+
+def test_cycle_intent_hedge_matches_whole_words_only():
+    assert detect_cycle_intent("maybes") == "unclear"  # not a hedge match, and no other word either
+    assert detect_cycle_intent("I am not surely") == "unclear"
+    assert detect_cycle_intent("sure thing") == "accept"  # 'sure' alone is still accept
