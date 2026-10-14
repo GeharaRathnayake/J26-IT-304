@@ -1,0 +1,593 @@
+# Template replies: the fallback the PP1 demo runs on before any LLM exists. Not the research contribution.
+# One entry per accepted topic (14 topics + the reserved slug "general") x strategy (theory, example,
+# simplified, analogy) = 60 entries. Each entry is a LIST of variants; the variant for a cycle is
+# variants[(cycle - 1) % len(variants)]. `inheritance` (the demo topic) has two variants per strategy so a
+# second cycle shows a genuinely different explanation (claim C3); every other entry has one for now.
+#
+# Format rules (checked at load by TemplateFallback): Markdown; Java only in fenced ```java blocks;
+# exactly one "**Check:**" line and it is the last non-empty line; every example has a closed ```java
+# fence; two to four sentences of explanation (excluding code); never the word that labels a student.
+# Java must be correct and minimal. Do not paraphrase the content of this file into the code.
+
+templates:
+  variables_and_data_types:
+    theory:
+      - |
+        A variable is a named place in memory that holds a value, and in Java you must declare its type, such as `int` for whole numbers, `double` for decimals, `boolean` for true or false, and `String` for text. The type decides what the variable can hold, so you cannot store text in an `int`. A variable must be declared and given a value before you read it.
+
+        **Check:** What type would you declare for a student's age, and why?
+    example:
+      - |
+        Here is a small example:
+
+        ```java
+        public class Demo {
+            public static void main(String[] args) {
+                int age = 20;
+                String name = "Sam";
+                System.out.println(name + " is " + age);
+            }
+        }
+        ```
+
+        Each variable is declared with a type, a name and a starting value, and the last line prints `Sam is 20`.
+
+        **Check:** Which of these two variables could hold the text `"Ali"`?
+    simplified:
+      - |
+        Step one: decide what kind of value you need, such as a whole number. Step two: give it a name you will remember. Step three: put a value in it, like `int score = 5;`.
+
+        **Check:** In `int score = 5;`, which word is the name?
+    analogy:
+      - |
+        A variable is like a labelled jar in a kitchen: the label is the variable's name, the kind of food the jar is made for is its type, and what is inside is its value. A jar made for sugar should not be filled with salt, just as an `int` variable cannot hold text. In Java, `int jars = 3;` creates a jar named `jars` that holds the whole number 3.
+
+        **Check:** In this analogy, what does the type correspond to?
+
+  conditional_statements:
+    theory:
+      - |
+        A conditional statement lets a program choose what to run. An `if` statement runs its block only when its condition, which must be a `boolean` expression, is true. You can add `else if` branches to test further conditions and a final `else` that runs when none of them was true. Only the first branch whose condition is true runs.
+
+        **Check:** If `x` is 5, which block runs in `if (x > 10) { ... } else { ... }`?
+    example:
+      - |
+        Here is a small example:
+
+        ```java
+        public class Demo {
+            public static void main(String[] args) {
+                int score = 72;
+                if (score >= 50) {
+                    System.out.println("Pass");
+                } else {
+                    System.out.println("Fail");
+                }
+            }
+        }
+        ```
+
+        The condition `score >= 50` is true for 72, so the program prints `Pass` and skips the `else` block.
+
+        **Check:** What would be printed if `score` were 40?
+    simplified:
+      - |
+        A conditional is a yes-or-no question for your program. If the answer is yes, it does one thing, and if the answer is no, it can do something else. In Java you write the question in brackets after `if`, like `if (age >= 18)`.
+
+        **Check:** In `if (age >= 18)`, what is the yes-or-no question being asked?
+    analogy:
+      - |
+        A conditional is like checking the weather before you leave home: if it is raining you take an umbrella, otherwise you do not. The weather check is the condition, and each plan is a branch of the code. In Java this could read `if (raining) { plan = "umbrella"; } else { plan = "no umbrella"; }`.
+
+        **Check:** In this analogy, what plays the role of the condition?
+
+  loops:
+    theory:
+      - |
+        A loop repeats a block of code. A `for` loop is used when you know how many times to repeat, and it has three parts: an initialiser, a condition checked before each pass, and an update run after each pass. A `while` loop repeats as long as its condition stays true, so something inside it must eventually make the condition false. Otherwise it never stops.
+
+        **Check:** How many times does the body of `for (int i = 0; i < 3; i++)` run?
+    example:
+      - |
+        Here is a small example:
+
+        ```java
+        public class Demo {
+            public static void main(String[] args) {
+                for (int i = 1; i <= 3; i++) {
+                    System.out.println("Round " + i);
+                }
+            }
+        }
+        ```
+
+        The loop starts with `i` at 1, prints a line, adds 1 to `i`, and stops when `i` becomes 4, so it prints three lines.
+
+        **Check:** What would change if the condition were `i <= 5`?
+    simplified:
+      - |
+        A loop is a way to say "do this again" without writing the same lines many times. You tell Java where to start, when to stop, and how to move forward each time. For example, `for (int i = 0; i < 3; i++)` starts at 0, stops before 3, and adds 1 each time.
+
+        **Check:** In that loop, what is the starting value of `i`?
+    analogy:
+      - |
+        A loop is like running laps around a track: you keep going round until you have done the number of laps you planned. The lap you are on is the counter, the planned number of laps is the condition, and finishing one lap is one pass through the body. In Java, `for (int lap = 1; lap <= 3; lap++)` runs exactly three laps.
+
+        **Check:** In this analogy, what does `lap++` correspond to?
+
+  arrays:
+    theory:
+      - |
+        An array is a fixed-size collection of values that all have the same type. You create one with a size, for example `new int[5]`, and the size cannot change afterwards. Each element is reached by its index, and indexes start at 0, so an array of length 5 has indexes 0 to 4. Using an index outside that range throws an `ArrayIndexOutOfBoundsException`.
+
+        **Check:** What is the index of the last element in an array of length 5?
+    example:
+      - |
+        Here is a small example:
+
+        ```java
+        public class Demo {
+            public static void main(String[] args) {
+                int[] scores = {70, 85, 90};
+                System.out.println(scores[0]);
+                System.out.println(scores.length);
+            }
+        }
+        ```
+
+        The expression `scores[0]` is the first element, so this prints 70, and `scores.length` is 3 because the array holds three values.
+
+        **Check:** Which index would give you the value 90?
+    simplified:
+      - |
+        An array is a row of numbered slots, and every slot holds the same kind of value. The numbering starts at 0, not 1. To read a slot you write the array's name and the slot number in square brackets, like `scores[1]`.
+
+        **Check:** In an array of three values, what are the slot numbers?
+    analogy:
+      - |
+        An array is like a row of lockers in a school corridor: the lockers are all the same kind, they sit side by side, and each has a fixed number starting from 0. The corridor has a set number of lockers, just as an array has a fixed length. In Java, `lockers[2]` opens the third locker, because counting starts at 0.
+
+        **Check:** In this analogy, what does the array's length correspond to?
+
+  methods_and_functions:
+    theory:
+      - |
+        A method is a named block of code that you can run whenever you need it. Its header gives a return type, a name and a parameter list, such as `int add(int a, int b)`. The `return` statement sends a value back to the caller, and a method with return type `void` returns nothing. Calling a method with arguments copies those values into its parameters.
+
+        **Check:** In `int add(int a, int b)`, what does the first `int` tell you?
+    example:
+      - |
+        Here is a small example:
+
+        ```java
+        public class Demo {
+            static int square(int n) {
+                return n * n;
+            }
+
+            public static void main(String[] args) {
+                System.out.println(square(4));
+            }
+        }
+        ```
+
+        The call `square(4)` passes 4 into the parameter `n`, and the method returns 16, which is printed.
+
+        **Check:** What would `square(5)` return?
+    simplified:
+      - |
+        A method is a small job that you give a name. You can run the job any time by writing its name with brackets, and you can hand it values to work with. The job can also give a result back, using `return`.
+
+        **Check:** In `square(4)`, which part is the name of the job and which part is the value you hand it?
+    analogy:
+      - |
+        A method is like a recipe: it has a name, a list of ingredients it needs, and it produces a dish at the end. The ingredients are the parameters, the cooking steps are the body, and the finished dish is the return value. In Java, `int add(int a, int b)` is a recipe named `add` that takes two whole numbers and gives back one.
+
+        **Check:** In this analogy, what are the arguments you pass when you call the method?
+
+  classes_and_objects:
+    theory:
+      - |
+        A class is a blueprint that describes the fields (data) and methods (behaviour) of a kind of thing. An object is one instance built from that blueprint using `new`, and each object keeps its own copy of the fields. A constructor is a special method with the class's name that sets up a new object. You can create many objects from one class.
+
+        **Check:** If `Car` is a class, what is `new Car()`?
+    example:
+      - |
+        Here is a small example:
+
+        ```java
+        public class Demo {
+            static class Car {
+                String colour;
+                Car(String colour) { this.colour = colour; }
+            }
+
+            public static void main(String[] args) {
+                Car mine = new Car("red");
+                System.out.println(mine.colour);
+            }
+        }
+        ```
+
+        The class `Car` is the blueprint, and `new Car("red")` builds one object whose `colour` field is "red", which the program prints.
+
+        **Check:** How would you create a second car that is blue?
+    simplified:
+      - |
+        A class is a plan for a kind of thing, such as a plan for a car. An object is one real car built from that plan. In Java you build an object with `new`, for example `new Car()`.
+
+        **Check:** In `Car mine = new Car();`, which part creates the object?
+    analogy:
+      - |
+        A class is like a cookie cutter and objects are the cookies it makes. The cutter defines the shape, and every cookie made from it has that shape but can be decorated differently. In Java, `Cookie` would be the class, and each `new Cookie()` makes a separate object with its own field values.
+
+        **Check:** In this analogy, what does decorating one cookie differently correspond to?
+
+  inheritance:
+    theory:
+      - |
+        Inheritance lets one class, the subclass, reuse the fields and methods of another class, the superclass, using the keyword `extends`. A subclass can use everything in its superclass that is not private, and it can add its own members or override inherited methods. Java allows a class to extend only one superclass. A subclass constructor must also run the parent constructor, and `super(...)` does that.
+
+        **Check:** In `class Dog extends Animal`, which class is the superclass?
+      - |
+        Inheritance models an "is-a" relationship: if a `Car` is a `Vehicle`, then `Car` can extend `Vehicle`. Because of this, a `Car` object can be used wherever a `Vehicle` is expected, and the subclass can replace an inherited method with its own version by overriding it. Use inheritance only when the "is-a" sentence really makes sense, and otherwise keep the other object as a field.
+
+        **Check:** Would `class Car extends Engine` make sense, and why or why not?
+    example:
+      - |
+        Let's look at an example:
+
+        ```java
+        class Animal {
+            String name;
+            Animal(String name) { this.name = name; }
+        }
+
+        class Dog extends Animal {
+            Dog(String name) {
+                super(name);
+            }
+        }
+        ```
+
+        The `super(name)` call runs the parent constructor first, so the inherited `name` field is set before `Dog` finishes building.
+
+        **Check:** What would happen if we removed the `super(name)` line?
+      - |
+        Here is a different example, this time about overriding:
+
+        ```java
+        class Shape {
+            double area() { return 0; }
+        }
+
+        class Circle extends Shape {
+            double r = 2;
+
+            @Override
+            double area() { return Math.PI * r * r; }
+        }
+        ```
+
+        `Circle` extends `Shape` and replaces `area()` with its own formula, so calling `area()` on a `Circle` gives about 12.57.
+
+        **Check:** What would `area()` return for a plain `Shape` object?
+    simplified:
+      - |
+        Inheritance means one class borrows what another class already has. The class that borrows is the child, and the class it borrows from is the parent. You write `extends` to connect them, like `class Dog extends Animal`.
+
+        **Check:** In `class Dog extends Animal`, which class is the child?
+      - |
+        Imagine you already wrote a `Vehicle` class with a `speed` field. Instead of copying it into `Car` and `Bike`, you write `extends Vehicle` in each, and both get `speed` for free. That saves typing and keeps the shared parts in one place.
+
+        **Check:** If you add a `Truck` class, which keyword do you write to reuse `Vehicle`?
+    analogy:
+      - |
+        Inheritance is like a family: a child inherits traits from a parent, such as eye colour, but can also have traits of their own. In Java the parent is the superclass and the child is the subclass, and `extends` is the family link. A `Dog` that extends `Animal` automatically has what every `Animal` has, and can add barking on top.
+
+        **Check:** In this analogy, what does a trait the child has but the parent lacks correspond to in code?
+      - |
+        Inheritance is like a smartphone range: the basic phone can call and text, and the Pro model starts with all of that and adds a better camera. In Java the basic phone is the superclass, the Pro is the subclass, and `extends` means "start with everything the basic one has". If the Pro wants a different way of taking photos, it overrides that method.
+
+        **Check:** In this analogy, what does overriding correspond to?
+
+  polymorphism:
+    theory:
+      - |
+        Polymorphism means one reference type can stand for objects of many different classes. If `Dog` and `Cat` both extend `Animal`, an `Animal` variable can hold either, and calling an overridden method such as `speak()` runs the version that belongs to the actual object. Java chooses this at run time, which is called dynamic dispatch. Overloading is different: it means several methods with the same name but different parameters.
+
+        **Check:** If an `Animal` variable holds a `Dog`, whose `speak()` runs?
+    example:
+      - |
+        Here is a small example:
+
+        ```java
+        class Animal {
+            String speak() { return "..."; }
+        }
+        class Dog extends Animal {
+            String speak() { return "Woof"; }
+        }
+        public class Demo {
+            public static void main(String[] args) {
+                Animal a = new Dog();
+                System.out.println(a.speak());
+            }
+        }
+        ```
+
+        The variable `a` has type `Animal` but refers to a `Dog`, so `a.speak()` runs the `Dog` version and prints `Woof`.
+
+        **Check:** What would be printed if `a` held `new Animal()` instead?
+    simplified:
+      - |
+        Polymorphism means the same method call can do different things depending on the object. For example, `speak()` can print "Woof" for a dog and "Meow" for a cat. You write the call once, and Java picks the right version when the program runs.
+
+        **Check:** If a `Cat` object receives the `speak()` call, which version runs?
+    analogy:
+      - |
+        Polymorphism is like pressing the "play" button on different devices: the button looks the same, but a music player plays a song and a video player plays a film. The button is the method name, and each device is an object that decides what "play" means for it. In Java, calling `play()` on a `MusicPlayer` or a `VideoPlayer` runs each class's own version.
+
+        **Check:** In this analogy, what does the common button correspond to in Java?
+
+  encapsulation:
+    theory:
+      - |
+        Encapsulation means keeping a class's data private and controlling access to it through methods. You mark fields `private` so other classes cannot change them directly, and you provide public getters and setters that can check values before changing anything. This protects the object from ending up in an invalid state. It also lets you change the inside of the class later without breaking the code that uses it.
+
+        **Check:** Why make a field `private` instead of `public`?
+    example:
+      - |
+        Here is a small example:
+
+        ```java
+        public class Account {
+            private double balance;
+
+            public void deposit(double amount) {
+                if (amount > 0) {
+                    balance += amount;
+                }
+            }
+
+            public double getBalance() { return balance; }
+        }
+        ```
+
+        The `balance` field is private, so other code can change it only through `deposit`, which refuses amounts that are not positive.
+
+        **Check:** What would happen to `balance` if `deposit(-50)` were called?
+    simplified:
+      - |
+        Encapsulation means other code cannot touch an object's data directly. The data is kept private, and the class gives out a few methods that are allowed to read or change it. Those methods can check a change first, so wrong values are stopped.
+
+        **Check:** Which keyword hides a field from other classes?
+    analogy:
+      - |
+        Encapsulation is like a bank's cash machine: you cannot reach into the vault, you can only use the buttons the bank provides. The vault is the private data, the buttons are the public methods, and the machine checks your request before giving you money. In Java, a `private double balance` with a `withdraw` method works the same way.
+
+        **Check:** In this analogy, what does the machine's check of your request correspond to?
+
+  abstraction:
+    theory:
+      - |
+        Abstraction means showing what something does while hiding how it does it. In Java you express it with abstract classes and interfaces, which declare methods without giving them a body. A normal class that implements the interface or extends the abstract class must supply those bodies. Code that uses the abstraction then depends only on what is promised, not on the details.
+
+        **Check:** Can you create an object directly from an interface with `new`?
+    example:
+      - |
+        Here is a small example:
+
+        ```java
+        interface Shape {
+            double area();
+        }
+
+        class Square implements Shape {
+            private final double side;
+
+            Square(double side) { this.side = side; }
+
+            public double area() { return side * side; }
+        }
+        ```
+
+        The `Shape` interface promises an `area()` method without saying how it works, and `Square` supplies the details.
+
+        **Check:** What would the compiler complain about if `Square` left out `area()`?
+    simplified:
+      - |
+        Abstraction means you use something without needing to know how it works inside. You only need to know what it can do. In Java, an interface lists what a class can do, and each class decides how to do it.
+
+        **Check:** Does an interface list what a class can do, or how it does it?
+    analogy:
+      - |
+        Abstraction is like driving a car: you use the steering wheel and pedals without knowing how the engine works. The controls are the abstraction and the engine is the hidden detail. In Java, an interface such as `Drivable` with `steer()` and `brake()` describes the controls, and each car class supplies its own engine behind them.
+
+        **Check:** In this analogy, what does a class that implements `Drivable` correspond to?
+
+  exception_handling:
+    theory:
+      - |
+        An exception is an event that disrupts normal execution, such as dividing an integer by zero or reading a missing file. You wrap risky code in a `try` block and handle the problem in a `catch` block for the exception type you expect. An optional `finally` block runs whether or not an exception happened, which makes it useful for cleanup. If nothing catches an exception, the program stops with an error message.
+
+        **Check:** When does the `catch` block run?
+    example:
+      - |
+        Here is a small example:
+
+        ```java
+        public class Demo {
+            public static void main(String[] args) {
+                try {
+                    int result = 10 / 0;
+                    System.out.println(result);
+                } catch (ArithmeticException e) {
+                    System.out.println("Cannot divide by zero");
+                }
+            }
+        }
+        ```
+
+        Dividing an `int` by zero throws an `ArithmeticException`, so the rest of the `try` block is skipped and the `catch` block prints its message.
+
+        **Check:** Would the line `System.out.println(result);` run, and why or why not?
+    simplified:
+      - |
+        An exception is Java's way of saying that something went wrong while the program was running. With `try`, you say "attempt this". With `catch`, you say "if that went wrong, do this instead".
+
+        **Check:** Which keyword holds the code that might fail?
+    analogy:
+      - |
+        Exception handling is like a safety net under a trapeze artist: if something goes wrong, the net catches the fall and the show goes on. The `try` block is the performance, the exception is the fall, and the `catch` block is the net. A `finally` block is like the cleanup crew that works after every show, whether or not anyone fell.
+
+        **Check:** What happens in this analogy if no net is set up?
+
+  collections:
+    theory:
+      - |
+        The Java Collections Framework provides ready-made classes for groups of objects that can grow and shrink. A `List` keeps elements in order and allows duplicates, a `Set` rejects duplicates, and a `Map` stores key-value pairs. Common implementations are `ArrayList`, `HashSet` and `HashMap`. You declare the element type with generics, for example `List<String>`, so the compiler can check what goes in.
+
+        **Check:** Which collection would you use to store each student's name against their ID?
+    example:
+      - |
+        Here is a small example:
+
+        ```java
+        import java.util.ArrayList;
+        import java.util.List;
+
+        public class Demo {
+            public static void main(String[] args) {
+                List<String> names = new ArrayList<>();
+                names.add("Ann");
+                names.add("Ben");
+                System.out.println(names.size());
+            }
+        }
+        ```
+
+        An `ArrayList` grows as you add elements, so after two `add` calls `size()` returns 2.
+
+        **Check:** What would `names.get(1)` return?
+    simplified:
+      - |
+        A collection is a container that holds many items and can grow as you add more. A list keeps items in order, a set keeps each item only once, and a map links a key to a value. You choose the container that matches how you want to look things up.
+
+        **Check:** Which container would you use for a to-do list where order matters?
+    analogy:
+      - |
+        Collections are like different ways of storing things at home: a list is a bookshelf with books in order, a set is a jar of unique stamps, and a map is a phone book linking names to numbers. Each container fits one way of finding things. In Java these are `List`, `Set` and `Map`, and unlike a fixed array they can grow.
+
+        **Check:** Which Java type matches the phone book in this analogy?
+
+  recursion:
+    theory:
+      - |
+        Recursion is when a method solves a problem by calling itself on a smaller version of the same problem. Every recursive method needs a base case that returns without calling itself, and a recursive case that moves closer to that base case. Without a base case, the calls never end and Java throws a `StackOverflowError`. Each call has its own copy of the parameters on the call stack.
+
+        **Check:** What is the base case in a method that computes the factorial of `n`?
+    example:
+      - |
+        Here is a small example:
+
+        ```java
+        public class Demo {
+            static int factorial(int n) {
+                if (n <= 1) {
+                    return 1;
+                }
+                return n * factorial(n - 1);
+            }
+
+            public static void main(String[] args) {
+                System.out.println(factorial(4));
+            }
+        }
+        ```
+
+        The call `factorial(4)` calls `factorial(3)`, then `factorial(2)`, down to the base case `n <= 1`, and the results multiply back up to give 24.
+
+        **Check:** What would happen if we removed the `if (n <= 1)` check?
+    simplified:
+      - |
+        Recursion means a method does a small piece of the work and then asks itself to do the rest. It must know when to stop, which is called the base case. Each time it calls itself, the problem should get smaller.
+
+        **Check:** Why must a recursive method have a base case?
+    analogy:
+      - |
+        Recursion is like a set of nested Russian dolls: to find the smallest doll, you open a doll and repeat the same step on the one inside. The smallest doll, which cannot be opened, is the base case. In Java, a method `open(doll)` would call `open` on the next smaller doll until it reaches that last one.
+
+        **Check:** In this analogy, what does opening the next doll correspond to?
+
+  file_io:
+    theory:
+      - |
+        File I/O is how a program reads data from files and writes data to them. In modern Java the `java.nio.file` classes `Path` and `Files` do most of the work, for example `Files.readString(path)` to read text and `Files.writeString(path, text)` to write it. These methods can fail, for example when a file is missing, so they throw `IOException`, which you must catch or declare. Always close streams you open yourself, and try-with-resources does this for you.
+
+        **Check:** Why do file methods throw `IOException`?
+    example:
+      - |
+        Here is a small example:
+
+        ```java
+        import java.io.IOException;
+        import java.nio.file.Files;
+        import java.nio.file.Path;
+
+        public class Demo {
+            public static void main(String[] args) throws IOException {
+                Path file = Path.of("notes.txt");
+                Files.writeString(file, "Hello");
+                System.out.println(Files.readString(file));
+            }
+        }
+        ```
+
+        This writes `Hello` to `notes.txt`, reads the file back and prints it. The `throws IOException` on `main` is needed because both file calls can fail.
+
+        **Check:** What would you add if you wanted to handle a failed read instead of letting `main` throw?
+    simplified:
+      - |
+        File input and output means your program reading from a file or saving to a file. First you point to the file with a `Path`. Then you use `Files` to read or write it, and you must be ready for the file to be missing.
+
+        **Check:** Which class do you use to read the text in a file?
+    analogy:
+      - |
+        File I/O is like using a notebook: writing saves your words on paper so they are still there tomorrow, and reading looks them up again. The file is the notebook, and the `Path` is where it sits on the shelf. Just as the notebook might be missing, a file operation might fail, which is why Java makes you handle `IOException`.
+
+        **Check:** In this analogy, what does a missing notebook correspond to?
+
+  general:
+    theory:
+      - |
+        Let's start from the definition. Every Java concept comes with a precise meaning, a few key rules, and some common mistakes. Tell me the word or the line of code you are unsure about, and I will give you its definition and rules in beginner-friendly terms.
+
+        **Check:** Which word or line of code would you like me to define first?
+    example:
+      - |
+        Let's work through a small case together:
+
+        ```java
+        public class Demo {
+            public static void main(String[] args) {
+                int x = 2;
+                x = x + 3;
+                System.out.println(x);
+            }
+        }
+        ```
+
+        Reading it line by line, `x` starts as 2, then becomes 5, and 5 is printed. Tracing a few lines like this is a good way to check any idea you are unsure about.
+
+        **Check:** What would be printed if we added `x = x * 2;` before the `println` line?
+    simplified:
+      - |
+        Let's take it one small step at a time. First, say in your own words what you are trying to do. Then we will find the single Java idea that does it and look at that idea on its own.
+
+        **Check:** In one sentence, what are you trying to make your program do?
+    analogy:
+      - |
+        Learning a new programming idea is a bit like learning a new route: it helps to compare it with a route you already know. Think of something familiar, such as following a recipe or giving directions, and we can map each step of it onto Java. Tell me the idea you are working on and I will build the comparison.
+
+        **Check:** What everyday process do you know well that we could compare Java to?
