@@ -204,3 +204,14 @@ def test_assertion_strings_are_the_documented_ones():
     # Raw text, as specified: guards against someone "tidying" them.
     assert CORRECT_TEXT == "A for loop repeats a block of code while its condition is true."
     assert CONFUSED_TEXT == "i dont get it"
+
+
+def test_settings_defaults_are_host_127_and_port_8001(monkeypatch):
+    # 8001 is fixed by the frontend's committed default (VITE_TUTOR_URL).
+    for var in ("HOST", "PORT", "MODEL_VERSION", "MODELS_DIR"):
+        monkeypatch.delenv(var, raising=False)
+    from app.config import Settings
+
+    settings = Settings(_env_file=None)
+    assert settings.PORT == 8001
+    assert settings.HOST == "127.0.0.1"

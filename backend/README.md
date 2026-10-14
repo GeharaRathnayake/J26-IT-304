@@ -12,7 +12,53 @@ endpoint, rules or LLM yet.
 > synthetic answers. It has never seen a real student message and is **not** a validated
 > confusion detector (for example it scores `"that makes sense"` at ~0.99 confused).
 
-## Build, run, test with Docker (primary)
+## Demo path (rehearsed): venv + `python -m app` on `127.0.0.1:8001`
+
+The demo runs uvicorn directly from the venv, not Docker. Building an image needs a
+network (which sits badly with an offline-operation claim), reaching Ollama from a
+container needs extra plumbing, and the venv has fewer moving parts on demo day.
+
+Requires Python 3.13 and scikit-learn **exactly 1.9.1** (the version the artifact was
+pickled with). Run from `dev/backend/`. Bare `python` on the lab machine is 3.10, so use
+the venv's interpreter:
+
+```powershell
+py -3.13 -m venv .venv
+.\.venv\Scripts\python -m pip install -r requirements-dev.txt   # runtime pins + pytest + httpx
+.\.venv\Scripts\python -c "import sklearn; print(sklearn.__version__)"   # must print 1.9.1
+.\.venv\Scripts\python -m pytest
+.\.venv\Scripts\python -m app          # the demo command: http://127.0.0.1:8001
+curl.exe http://127.0.0.1:8001/health
+```
+
+### Why the port is 8001
+
+**8001 is fixed.** The frontend's committed default is `VITE_TUTOR_URL=http://localhost:8001`
+(`frontend/src/features/tutor/config/env.ts`; `ARCHITECTURE.md` §7 says the same). Do not
+pick another port. `HOST` (default `127.0.0.1`) and `PORT` (default `8001`) are settings;
+the Docker image sets `HOST=0.0.0.0`.
+
+### Windows port reservation: re-check on the day
+
+Windows reserves dynamic TCP port ranges, and **the reserved ranges move after a reboot**.
+On 2026-10-14 the range 7964-8063 (covering 8000 and 8001) was reserved. Before any demo:
+
+```powershell
+netsh interface ipv4 show excludedportrange protocol=tcp
+```
+
+8001 must appear as its **own row marked `*`** (administered). If 8001 falls inside a
+dynamic range, or the service fails to bind with "forbidden by its access permissions",
+a human runs this in an **administrator** shell (never the service):
+
+```
+net stop winnat
+netsh int ipv4 add excludedportrange protocol=tcp startport=8001 numberofports=1
+net start winnat
+netsh interface ipv4 show excludedportrange protocol=tcp
+```
+
+## Development convenience: build, test, optional run (Docker)
 
 Run from `dev/backend/`. The image is `python:3.13.16-slim` (pinned by digest), the exact
 Python the artifact was trained on, with scikit-learn 1.9.1.
@@ -20,8 +66,8 @@ Python the artifact was trained on, with scikit-learn 1.9.1.
 ```powershell
 docker compose build          # both targets: runtime (api) and test
 docker compose run --rm test  # python -m pytest inside the test image
-docker compose up -d api      # serves on 127.0.0.1:8000 (localhost only)
-curl.exe http://127.0.0.1:8000/health
+docker compose up -d api      # serves on 127.0.0.1:8001 (localhost only)
+curl.exe http://127.0.0.1:8001/health
 docker compose down
 ```
 
@@ -33,25 +79,9 @@ docker compose down
   `unhealthy` in `docker ps`.
 - The `runtime` target holds `app/` and `models/` only; the `test` target adds dev
   dependencies and `tests/`.
-- **Port 8000 reserved by Windows?** If `docker compose up` fails with "forbidden by its
-  access permissions", check `netsh int ipv4 show excludedportrange protocol=tcp` and use
-  another host port: `$env:API_PORT='8200'; docker compose up -d api`.
+- If the host port is unavailable, `API_PORT` overrides it for Docker only
+  (`$env:API_PORT='8200'; docker compose up -d api`); the frontend still expects 8001.
 - `models/` must stay byte-exact (`.gitattributes` keeps Git from rewriting line endings).
-
-## Local venv (fallback)
-
-Requires Python 3.13 and scikit-learn **exactly 1.9.1** (the version the artifact was
-pickled with). Run from `dev/backend/`:
-
-```powershell
-py -3.13 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements-dev.txt     # runtime pins + pytest + httpx
-python -c "import sklearn; print(sklearn.__version__)"   # must print 1.9.1
-python -m uvicorn app.main:app --port 8000
-curl.exe http://127.0.0.1:8000/health
-```
-
 ## Behaviour
 
 Expected: `{"status":"ok","model_loaded":true,"llm_reachable":false,"model_version":"clf-v1.0.0"}`.
@@ -64,7 +94,7 @@ service still starts in a degraded state. `GET /health` then returns exactly
 `{"status":"degraded","model_loaded":false,"llm_reachable":false,"model_version":null}`.
 Any other startup exception still stops the process.
 
-Settings (env vars): `MODEL_VERSION` (default `clf-v1.0.0`), `MODELS_DIR` (default: the
+Settings (env vars): `HOST`, `PORT`, `MODEL_VERSION` (default `clf-v1.0.0`), `MODELS_DIR` (default: the
 `models/` directory next to `app/`, independent of the working directory).
 
 ## Test
