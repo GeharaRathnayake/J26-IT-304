@@ -76,6 +76,37 @@ approved scope of C3 is: shown on the LLM path, and on the template path for `in
 nothing about whether a generated cycle-2 reply reads as different or non-repetitive from its
 cycle-1 counterpart; nothing here measured that.
 
+## GPU re-run (S10c, 2026-10-16)
+
+Two runs of `llama3.2:3b` at `num_predict` 110 (3 runs x 16 prompts = 48 generations each), with the
+discrete GPU on and `placement` recorded. **These are the figures for the shipped configuration.** The
+committed 2026-10-15 CPU figures above remain as the record of the dGPU-off state; no existing file was
+changed.
+
+| | cycle 1 (`np110_r2`) | cycle 2, same-strategy priors (`np110_r2_c2same`) |
+|---|---|---|
+| `placement` | `size` = `size_vram` = 2561000078, `gpu_fraction` 1.0 | the same |
+| tok/s, median | 52.9 | 41.6 |
+| wall, median | 2.17 s | 2.43 s |
+| wall, p95 (nearest rank, `llm_scoring.percentile`) | 2.42 s | 2.79 s |
+| wall, max | 2.77 s | 2.80 s |
+| walls above 18 s | 0 of 48 | 0 of 48 |
+| wall drift, median of first / middle / last 16 | 2.20 / 2.10 / 2.19 s (flat) | 2.25 / 2.55 / 2.77 s (rising) |
+| GPU before the run | 70 C, slowdown not active | 79 C, slowdown not active |
+| GPU after the run | 86 C, slowdown **active** | 87 C, slowdown **active** |
+
+**Drift.** The cycle-2 run's wall time rose by about 23% across its 48 generations while
+`gpu_fraction` stayed 1.0 and the GPU reached 87 C with `sw_thermal_slowdown` active: that is the
+thermal effect, not a placement change. No generation was discarded. The GPU was waited down between
+the runs (1 minute each time, as the preflight required); a longer back-to-back session would keep
+climbing, so these are figures for a cool start.
+
+**What this does and does not say.** The quality columns in the new files (usable 88% in both, 79% and
+90% truncated at the 110-token cap) are recorded as they came out and are **not a re-scoring of D2**:
+the verdict stands (`llama3.2:3b` did not meet the 90% bar and ships with the template fallback).
+`LLM_TIMEOUT_S` stays 18 s. The timing basis is unchanged: the benchmark streams, the service does not
+(see "The timing caveat").
+
 ## How to read `SUMMARY.md`
 
 - **Row label** `model @N rX [c2same|c2all] (date)`: `N` = `num_predict`, `rX` = prompt revision, the
