@@ -260,6 +260,30 @@ def _revision(result: dict) -> str:
     return result.get("prompt_revision", "r1")
 
 
+def _cycle(result: dict) -> int:
+    """The explanation cycle a run's prompts were built for. Result files from before S8b predate
+    the field: that was cycle 1."""
+    return result.get("cycle", 1)
+
+
+def _cycle_suffix(result: dict) -> str:
+    """' c2same' / ' c2all' from cycle 2, else '' (S8b). Cycle-1 labels are unchanged on purpose:
+    the committed cycle-1 rows are evidence."""
+    cycle = _cycle(result)
+    if cycle < 2:
+        return ""
+    return f" c{cycle}{result.get('priors') or 'same'}"
+
+
+def median_prompt_chars(prompt_set: list) -> float | None:
+    """Median character length of a run's prompts (S8b): measures the cycle-2 prompt-size change
+    instead of asserting it. The PRIOR BLOCK shrinks fourfold between `c2all` and `c2same` (one
+    cycle-1 template instead of four), but the whole prompt only about 1.9x, since the fixed
+    instructions, topic and student message cost the same either way."""
+    lengths = [len(item["prompt"]) for item in (prompt_set or []) if isinstance(item, dict) and "prompt" in item]
+    return _median(lengths)
+
+
 def summary_markdown(results: list[dict]) -> str:
     """One row per result file, regenerated from the result JSONs (each carries its aggregates,
     recomputed here from the raw generations so a stale number can never survive)."""
@@ -267,13 +291,14 @@ def summary_markdown(results: list[dict]) -> str:
         "| model @num_predict prompt-revision (run date) | cold start | wall median | wall p95 | over 12 s | wall spread "
         "| TTFT median | tok/s median | truncated | empty | **usable (would ship)** | example complete java "
         "| headings (raw) | Check ok raw / final | 2-4 sentences raw / final | java fenced (example) "
-        "| no unfenced code (others) | `<think>` raw / final | untagged leak raw / final | human rating (mean) |"
+        "| no unfenced code (others) | `<think>` raw / final | untagged leak raw / final | human rating (mean) "
+        "| prompt length (median chars) |"
     )
-    sep = "|" + "---|" * 20
+    sep = "|" + "---|" * 21
     rows = []
-    for r in sorted(results, key=lambda r: (r["model"], _num_predict(r), _revision(r), r["date"])):
+    for r in sorted(results, key=lambda r: (r["model"], _num_predict(r), _revision(r), _cycle(r), r.get("priors") or "", r["date"])):
         a = aggregate(r["generations"], (r.get("cold_start") or {}).get("wall_s"))
-        label = f"{r['model']} @{_num_predict(r)} {_revision(r)} ({r['date']})"
+        label = f"{r['model']} @{_num_predict(r)} {_revision(r)}{_cycle_suffix(r)} ({r['date']})"
         rows.append(
             f"| {label} | {_f(a['cold_start_s'], 1, ' s')} | {_f(a['wall_median_s'], 1, ' s')} "
             f"| {_f(a['wall_p95_s'], 1, ' s')} | {_f(a['pct_over_service_timeout'], 0, '%')} | {_f(a['wall_spread_median_s'], 1, ' s')} "
@@ -285,14 +310,16 @@ def summary_markdown(results: list[dict]) -> str:
             f"| {_f(a['pct_sentences_raw'], 0, '%')} / {_f(a['pct_sentences_final'], 0, '%')} "
             f"| {_f(a['pct_java_example'], 0, '%')} | {_f(a['pct_no_unfenced_code_other'], 0, '%')} "
             f"| {_f(a['pct_think_raw'], 0, '%')} / {_f(a['pct_think_final'], 0, '%')} "
-            f"| {_f(a['pct_leak_raw'], 0, '%')} / {_f(a['pct_leak_final'], 0, '%')} | |"
+            f"| {_f(a['pct_leak_raw'], 0, '%')} / {_f(a['pct_leak_final'], 0, '%')} | "
+            f"| {_f(median_prompt_chars(r.get('prompt_set')), 0)} |"
         )
     notes = (
         "\n\nHow to read this table:\n\n"
         "- Every number is over the successful generations of that run (16 prompts x runs). Timings are wall "
         "clock on the benchmark machine, with whatever else it was running.\n"
-        "- **over 12 s** is the share of generations the service would have replaced with a template (its "
-        "fallback timeout). It is a reference, not a pass mark, and no generation is stopped at 12 s.\n"
+        "- **over 12 s** is a FIXED REFERENCE carried from S7, not the service's timeout: `LLM_TIMEOUT_S` "
+        "(`app/config.py`) was 14 s in S8 and is 18 s since S8b. It is a reference point, not a pass mark, "
+        "and no generation is stopped at 12 s; read `LLM_TIMEOUT_S` for what the service actually falls back at.\n"
         "- **usable (would ship)** is the decisive column: the reply, after the deterministic post-processing "
         "(headings stripped; if the model stopped at the token cap, an unclosed code block dropped and the prose "
         "trimmed to the last complete sentence), has at least one complete prose sentence, an `example` has a "
@@ -313,5 +340,12 @@ def summary_markdown(results: list[dict]) -> str:
         "- Call parameters are fixed and recorded in each result JSON: `/api/chat`, one user message, "
         "`think: false`, `stream: true`, `num_predict` as in the row label, 60 s client timeout. The service's adapter must "
         "use the same.\n"
+        "- **c2same / c2all** (S8b) marks a cycle-2 row: `same` carries only the earlier explanation(s) of the "
+        "same strategy (what the service now sends); `all` carries all four cycle-1 templates (what S8 sent, "
+        "kept as the before case). No suffix means cycle 1; those rows and files are unchanged.\n"
+        "- **prompt length (median chars)** is the median character length of that run's 16 prompts. "
+        "Comparing `c2same` against `c2all`: the prior block itself shrinks fourfold (one cycle-1 template "
+        "instead of four), but the whole prompt only about 1.9x (1352 vs 2562 median characters), since the "
+        "fixed instructions, topic and student message are the same size either way.\n"
     )
     return "# LLM benchmark summary\n\n" + header + "\n" + sep + "\n" + "\n".join(rows) + notes

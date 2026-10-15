@@ -7,6 +7,7 @@ The format checks here are mechanical; they say nothing about explanation qualit
 
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -580,7 +581,7 @@ def test_summary_has_the_new_columns_and_the_decisive_one_is_bold(tmp_path):
     header = next(line for line in text.splitlines() if line.startswith("| model"))
     for column in ("usable (would ship)", "example complete java", "headings (raw)", "over 12 s", "human rating (mean)"):
         assert column in header
-    assert header.count("|") == 21 and text.splitlines()[4].count("|") == 21  # 20 columns, header and separator
+    assert header.count("|") == 22 and text.splitlines()[4].count("|") == 22  # 21 columns, header and separator
     row = next(line for line in text.splitlines() if line.startswith("| m @110"))
     assert "| m @110 r2 (2026-10-15) |" in row and "**100%**" in row
 
@@ -643,6 +644,82 @@ def test_the_shipped_text_in_the_result_is_post_processed_with_the_truncation_fl
     assert r["aggregates"]["pct_usable"] == 75.0  # 12 of 16 ship; the 4 example prompts have no java block in this reply
     assert r["aggregates"]["pct_headings_raw"] == 100.0
     assert r["aggregates"]["pct_example_java_complete"] == 0.0
+
+
+# --- S8b: cycle-2 prompts carry only the same strategy's priors; the benchmark measures it ---------------------
+
+
+def _prior_block(prompt):
+    if "<prior_explanations>" not in prompt:
+        return ""
+    return prompt.split("<prior_explanations>")[1].split("</prior_explanations>")[0]
+
+
+def _prior_count(prompt):
+    return len(re.findall(r"^\d+\. ", _prior_block(prompt), re.MULTILINE))
+
+
+def test_prompt_set_defaults_to_cycle_one_with_no_priors():
+    for item in bench.prompt_set():
+        assert "<prior_explanations>" not in item["prompt"]
+
+
+def test_prompt_set_cycle_two_same_has_exactly_one_prior_each():
+    for item in bench.prompt_set(cycle=2, priors="same"):
+        assert _prior_count(item["prompt"]) == 1
+
+
+def test_prompt_set_cycle_two_all_has_four_priors_each():
+    for item in bench.prompt_set(cycle=2, priors="all"):
+        assert _prior_count(item["prompt"]) == 4
+
+
+def test_prompt_set_cycle_two_same_prior_is_this_strategys_cycle_one_template():
+    for item in bench.prompt_set(cycle=2, priors="same"):
+        assert bench._TEMPLATES.get(item["topic"], item["strategy"], 1) in _prior_block(item["prompt"])
+
+
+def test_cycle_two_same_and_all_get_different_file_stems_and_label_the_summary(tmp_path):
+    fake = FakeOllama()
+    assert run_main(tmp_path, fake, "--cycle", "2", "--priors", "same", runs="1") == 0
+    assert run_main(tmp_path, fake, "--cycle", "2", "--priors", "all", runs="1") == 0
+    files = sorted(p.name for p in (tmp_path / "out").iterdir())
+    assert any(f.endswith("_c2same.json") for f in files)
+    assert any(f.endswith("_c2all.json") for f in files)
+    summary = (tmp_path / "out" / "SUMMARY.md").read_text(encoding="utf-8")
+    assert "c2same" in summary and "c2all" in summary
+
+
+def test_a_cycle_two_run_never_overwrites_the_cycle_one_file(tmp_path):
+    fake = FakeOllama()
+    assert run_main(tmp_path, fake, runs="1") == 0
+    before = sorted(p.name for p in (tmp_path / "out").glob("qwen3_4b_*_np80_r2.json"))
+    assert len(before) == 1
+    assert run_main(tmp_path, fake, "--cycle", "2", "--priors", "same", runs="1") == 0
+    after = sorted(p.name for p in (tmp_path / "out").glob("qwen3_4b_*_np80_r2.json"))
+    assert before == after  # the cycle-1 file is untouched; the cycle-2 run wrote a differently-named file
+
+
+def test_summary_has_a_prompt_length_column(tmp_path):
+    r = fake_result("m", "2026-10-15")
+    r["prompt_set"] = [{"prompt": "x" * 100}, {"prompt": "x" * 300}]
+    (tmp_path / "m.json").write_text(json.dumps(r), encoding="utf-8")
+    text = bench.regenerate_summary(tmp_path).read_text(encoding="utf-8")
+    header = next(line for line in text.splitlines() if line.startswith("| model"))
+    assert "prompt length (median chars)" in header
+    row = next(line for line in text.splitlines() if line.startswith("| m @80"))
+    assert "| 200 |" in row  # median of 100 and 300 chars
+
+
+def test_summary_labels_a_cycle_two_row_and_leaves_cycle_one_unlabelled(tmp_path):
+    r1 = fake_result("m", "2026-10-15")
+    r2 = fake_result("m", "2026-10-15", num_predict=110)
+    r2["cycle"], r2["priors"] = 2, "same"
+    (tmp_path / "a.json").write_text(json.dumps(r1), encoding="utf-8")
+    (tmp_path / "b.json").write_text(json.dumps(r2), encoding="utf-8")
+    text = bench.regenerate_summary(tmp_path).read_text(encoding="utf-8")
+    assert "m @80 r2 (2026-10-15)" in text  # cycle 1: unchanged label
+    assert "m @110 r2 c2same (2026-10-15)" in text
 
 
 def test_the_benchmarks_readme_records_the_one_revision_rule():

@@ -23,9 +23,56 @@ caps (80 and 110) in the same pass, so it is still one re-run.
 enough, PP1 ships the templates (`meta.fallback: true`), which is already the default. Choosing the model is
 the lead's decision, from the table.
 
+## Cycle-2 prompts (S8b): same-strategy priors only, re-measured
+
+S8's live smoke run measured a cycle-2 theory reply at 12.9 s against the (then) 14 s timeout:
+cycle-2 prompts are longer because the orchestrator used to pass **every** earlier explanation into
+the prompt, not just the earlier explanation(s) of the strategy being delivered. The lead's ruling:
+fix the prompt's input, not the timeout. `app/orchestrator.py` now passes only the same strategy's
+earlier explanation(s) (`app/generation/prompts.py::same_strategy_priors`); `build_prompt` itself is
+unchanged (prompt revision r2 is still final).
+
+`--cycle {1,2}` (default 1) and `--priors {same,all}` (default `same`, cycle 2 only) measure this:
+
+```powershell
+.venv\Scripts\python scripts\benchmark_llm.py --models llama3.2:3b --runs 3 --num-predict 110 --cycle 2 --priors same
+.venv\Scripts\python scripts\benchmark_llm.py --models llama3.2:3b --runs 3 --num-predict 110 --cycle 2 --priors all
+```
+
+- **`same`** is what the service now sends: one strategy's cycle-1 template as the prior.
+- **`all`** is what S8 sent (kept as the before case): all four cycle-1 templates, in delivery order.
+- Both use the deterministic cycle-1 **templates** as the prior text (real tutor texts, identical
+  every run, no generation needed) — not generated text, so the comparison isolates the prompt-size
+  effect from generation variance.
+- Cycle-2 result files and SUMMARY rows are named/labelled `c2same` / `c2all` (e.g.
+  `llama3.2_3b_<date>_np110_r2_c2same.json`, row label suffix ` c2same`). **Cycle-1 files and rows are
+  never touched by a cycle-2 run** — they are the S8 evidence.
+- **The timing caveat.** The benchmark streams (`stream: true`, no `keep_alive`); the service calls
+  `stream: false` with `keep_alive: "30m"`. The text produced should match, but the timing basis does
+  not: these figures are indicative for the service's generation time, not exact.
+
+### What this means for C3
+
+From `llama3.2_3b_2026-10-15_np110_r2_c2same.json` (48 generations, what the service now sends):
+**usable (would ship) 85% (41/48)**; **over the 18 s service timeout 0% (0/48)**, wall p95 14.6 s;
+**truncated at the 110-token cap 88%** (cycle 1: 69%); **example with complete Java 83%**. For
+`c2all` (what S8 sent): 33% over the 18 s timeout, p95 26.3 s.
+
+In plain words: at 18 s, cycle-2 replies are generated rather than timing out, but about 1 in 7 is
+still replaced by the template because it fails `would_ship`. The templates' cycle-2 variants carry
+C3 (dynamically different explanations across cycles) whatever the LLM does, and each turn's
+`meta.fallback` records which one — template or model — the student actually got. These numbers say
+nothing about whether a generated cycle-2 reply reads as different or non-repetitive from its
+cycle-1 counterpart; nothing here measured that.
+
 ## How to read `SUMMARY.md`
 
-- **Row label** `model @N rX (date)`: `N` = `num_predict`, `rX` = prompt revision.
+- **Row label** `model @N rX [c2same|c2all] (date)`: `N` = `num_predict`, `rX` = prompt revision, the
+  optional `c2...` suffix marks a cycle-2 row (absent = cycle 1, unchanged from S8).
+- **prompt length (median chars)**: median character length of that run's 16 prompts. Compares
+  `c2same` against `c2all` directly: the prior block itself shrinks fourfold (one cycle-1 template
+  instead of four), but the whole prompt only about **1.9×** (1352 vs 2562 median characters), since
+  the fixed instructions, topic and student message are the same size either way.
 - **usable (would ship)** is the decisive column. The reply, after the deterministic post-processing
   (`app/generation/postprocess.py`: headings stripped; when the model stopped at the token cap, an unclosed
   code block dropped and the prose trimmed to the last complete sentence), has at least one complete prose
@@ -35,8 +82,10 @@ the lead's decision, from the table.
 - **headings (raw)**: share of raw replies that opened with a heading or title line.
 - **untagged leak** is a heuristic (a line starting with `We are`, `Let me`, `The user`, ...) with false
   positives and negatives. An untagged preamble disqualifies a model (lead ruling).
-- **over 12 s**: share of generations the service would replace with a template (its fallback timeout).
-  A reference, not a pass mark; no generation is stopped at 12 s.
+- **over 12 s**: a **fixed reference carried from S7**, not the service's timeout (`LLM_TIMEOUT_S`,
+  `app/config.py`: 14 s in S8, 18 s since S8b). It is a reference point, not a pass mark, and no
+  generation is stopped at 12 s; read `LLM_TIMEOUT_S` in `app/config.py` for what the service actually
+  falls back at.
 - The format scores are mechanical. Whether an explanation is correct and good is the human rating.
 - For r1 rows, usable / headings / example columns are recomputed from the stored raw text with today's
   post-processing, so they show what post-processing alone would have achieved.

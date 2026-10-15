@@ -98,7 +98,7 @@ detector), decides the next move with the escalation engine, and returns a full 
 | `LLM_MODEL` | `llama3.2:3b` | Decision D2 (see below). |
 | `OLLAMA_URL` | `http://127.0.0.1:11434` | `127.0.0.1`, not `localhost` (an IPv6 lookup delay on Windows). Docker sets `http://host.docker.internal:11434`. |
 | `LLM_MAX_TOKENS` | `110` | `num_predict`. Measured 88% usable at 110 against 81% at 80. |
-| `LLM_TIMEOUT_S` | `14.0` | Cutoff for a generation call: measured p95 11.0 s at 110 tokens × 1.2. Never derive it from the 3 s latency target. |
+| `LLM_TIMEOUT_S` | `18.0` | Cutoff for a generation call: `ceil(max(p95_cycle1, p95_cycle2_same) × 1.2)` at 110 tokens = `ceil(max(11.0, 14.6) × 1.2)` (S8b; see `benchmarks/llm/README.md`). Never derive it from the 3 s latency target. |
 | `TURN_LOG_PATH` | unset | Opt-in per-turn research log (see below). |
 | `WEAK_THRESHOLD` | `3` | `is_weak` when counted strategies reach this or the episode ends unresolved. |
 | `MAX_CYCLES` | `2` | Explanation cycles per episode. |
@@ -114,6 +114,15 @@ WARNING naming the reason (`not_usable`, `reasoning_leak`, `timeout` or the erro
 student's text or the model's output). `meta.llm` is `ollama:llama3.2:3b` on every turn, including
 fallback turns. At startup a background warm-up loads the model (`keep_alive: 30m`); it never
 blocks or fails startup. With Ollama stopped the service still answers every turn, with templates.
+
+**Cycle-2 prompts (S8b).** From cycle 2, a delivery's prompt carries only the earlier
+explanation(s) of the *same strategy*, not every earlier explanation of the episode
+(`app/generation/prompts.py::same_strategy_priors`); see `benchmarks/llm/README.md` for the
+re-measured timeout this made possible. With Ollama down, each explain turn costs about 2 s on
+Windows (the refused-connection wait) before falling back to the template, which is slower than
+setting `LLM_PROVIDER=template` directly — that setting is the rehearsal escape hatch. See
+"What this means for C3" in `benchmarks/llm/README.md` for what the cycle-2 numbers do and do not
+support.
 
 **Per-turn research log (off by default).** When `TURN_LOG_PATH` is set, one JSON line per turn is
 appended (message, the preceding tutor turn, label/probability/source, whether the model and the

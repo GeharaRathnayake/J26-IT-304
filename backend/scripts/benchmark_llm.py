@@ -20,6 +20,12 @@ options.num_predict=N (default 80, `--num-predict N`; recorded in the results), 
 
 The tutor is a prototype; these are mechanical format checks plus timings, not a judgement of
 explanation quality.
+
+S8b: `--cycle {1,2}` (default 1) builds the prompts for that explanation cycle instead; `--priors
+{same,all}` (cycle 2 only, default `same`) picks whether a cycle-2 prompt carries only the earlier
+explanation(s) of the same strategy (what the service sends) or all four cycle-1 templates (what S8
+sent). Cycle-2 priors are the deterministic cycle-1 TEMPLATES, not generated text, so the comparison
+isolates the prompt-size effect. See `benchmarks/llm/README.md`.
 """
 
 from __future__ import annotations
@@ -41,6 +47,7 @@ for _p in (str(SCRIPTS_DIR), str(BACKEND_DIR)):
         sys.path.insert(0, _p)
 
 import llm_scoring  # noqa: E402
+from app.generation.adapters import TemplateFallback  # noqa: E402
 from app.generation.postprocess import finalise  # noqa: E402
 from app.generation.prompts import PROMPT_REVISION, build_prompt  # noqa: E402
 
@@ -49,6 +56,10 @@ TOPICS = ("inheritance", "loops", "exception_handling", "polymorphism")
 STUDENT_MESSAGE = "I don't understand"
 TIMEOUT_S = 60.0
 NUM_PREDICT = 80  # the default cap: a spoken reply plus its Check line is about 50-70 tokens; --num-predict overrides
+# S8b: cycle-2 priors are the deterministic cycle-1 TEMPLATES, not generated text (real tutor texts,
+# identical every run, no generation needed). `same` is what the service now sends for a cycle-2
+# delivery; `all` is what S8 sent (kept as the before case).
+_TEMPLATES = TemplateFallback()
 
 
 def call_parameters(num_predict: int) -> dict:
@@ -69,17 +80,27 @@ SERVICE_TIMEOUT_S = llm_scoring.SERVICE_TIMEOUT_S
 EXIT_OK, EXIT_ERRORS, EXIT_UNREACHABLE, EXIT_NO_MODEL = 0, 1, 2, 3
 
 
-def prompt_set() -> list[dict]:
+def _cycle2_priors(topic: str, strategy: str, priors: str) -> list[str]:
+    """The deterministic cycle-1 template text(s) that a cycle-2 prompt would carry.
+    `same`: this strategy's own cycle-1 template (what the service now sends).
+    `all`: all four cycle-1 templates, in delivery order (what S8 sent)."""
+    if priors == "same":
+        return [_TEMPLATES.get(topic, strategy, 1)]
+    return [_TEMPLATES.get(topic, s, 1) for s in STRATEGIES]
+
+
+def prompt_set(cycle: int = 1, priors: str = "same") -> list[dict]:
     items = []
     for topic in TOPICS:
         for strategy in STRATEGIES:
+            prior_explanations = [] if cycle == 1 else _cycle2_priors(topic, strategy, priors)
             items.append(
                 {
                     "topic": topic,
                     "strategy": strategy,
                     "prompt": build_prompt(
-                        topic=topic, strategy=strategy, cycle=1,
-                        student_message=STUDENT_MESSAGE, prior_explanations=[],
+                        topic=topic, strategy=strategy, cycle=cycle,
+                        student_message=STUDENT_MESSAGE, prior_explanations=prior_explanations,
                     ),
                 }
             )
@@ -215,8 +236,11 @@ def rating_sheet(model: str, run_date: str, generations: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def benchmark_model(client: httpx.Client, model: str, runs: int, base: str, ollama_version: str, unload_first: bool, log, num_predict: int = NUM_PREDICT) -> dict:
-    items = prompt_set()
+def benchmark_model(
+    client: httpx.Client, model: str, runs: int, base: str, ollama_version: str, unload_first: bool, log,
+    num_predict: int = NUM_PREDICT, cycle: int = 1, priors: str = "same",
+) -> dict:
+    items = prompt_set(cycle, priors)
     cold = {"wall_s": None, "unload_first": unload_first}
     if unload_first:
         cold.update(unload(client, model))
@@ -264,6 +288,8 @@ def benchmark_model(client: httpx.Client, model: str, runs: int, base: str, olla
         "base_url": base,
         "call_parameters": call_parameters(num_predict),
         "num_predict": num_predict,
+        "cycle": cycle,
+        "priors": priors if cycle >= 2 else None,
         "prompt_revision": PROMPT_REVISION,
         "prompt_set_sha256": hashlib.sha256("\n".join(i["prompt"] for i in items).encode("utf-8")).hexdigest(),
         "service_timeout_s_reference": SERVICE_TIMEOUT_S,
@@ -305,6 +331,10 @@ def main(argv: list[str] | None = None, transport: httpx.BaseTransport | None = 
     ap.add_argument("--out", default="benchmarks/llm/")
     ap.add_argument("--num-predict", type=int, default=NUM_PREDICT, help="token cap per generation (recorded in the results)")
     ap.add_argument("--no-unload", action="store_true", help="do not evict a resident model before the warm-up")
+    ap.add_argument("--cycle", type=int, choices=(1, 2), default=1, help="explanation cycle the prompts are built for")
+    ap.add_argument("--priors", choices=("same", "all"), default="same",
+                     help="cycle 2 only: 'same' (this strategy's cycle-1 template, what the service sends) "
+                          "or 'all' (all four cycle-1 templates, what S8 sent)")
     args = ap.parse_args(argv)
     log = lambda msg: print(msg, flush=True)  # noqa: E731
     out_dir = Path(args.out)
@@ -327,10 +357,17 @@ def main(argv: list[str] | None = None, transport: httpx.BaseTransport | None = 
             out_dir.mkdir(parents=True, exist_ok=True)
             errors = 0
             for model in wanted:
-                log(f"\n== {model}: {args.runs} runs x 16 prompts, num_predict={args.num_predict}, think=false ==")
-                result = benchmark_model(client, model, args.runs, args.base, version, not args.no_unload, log, args.num_predict)
-                # num_predict and prompt revision are in the name, so an earlier result file is never overwritten
+                log(f"\n== {model}: {args.runs} runs x 16 prompts, num_predict={args.num_predict}, "
+                    f"cycle={args.cycle}, priors={args.priors if args.cycle >= 2 else 'n/a'}, think=false ==")
+                result = benchmark_model(
+                    client, model, args.runs, args.base, version, not args.no_unload, log, args.num_predict,
+                    args.cycle, args.priors,
+                )
+                # num_predict, prompt revision and (from cycle 2) the cycle/priors are in the name, so an
+                # earlier result file is never overwritten
                 stem = f"{safe_name(model)}_{result['date']}_np{args.num_predict}_{PROMPT_REVISION}"
+                if args.cycle >= 2:
+                    stem += f"_c{args.cycle}{args.priors}"
                 (out_dir / f"{stem}.json").write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
                 (out_dir / f"{stem}_outputs.md").write_text(
                     rating_sheet(model, result["date"], result["generations"]), encoding="utf-8")

@@ -40,6 +40,7 @@ from app.generation.prompts import (
     STRATEGY_INTENT,
     build_prompt,
     neutralise,
+    same_strategy_priors,
 )
 from app.schemas import Strategy
 from app.topics import GENERAL, public_topics
@@ -397,6 +398,54 @@ def test_a_prompt_is_identical_for_identical_inputs():
 def test_prompt_rejects_bad_arguments(bad):
     with pytest.raises(ValueError):
         prompt(**bad)
+
+
+# --- same_strategy_priors (S8b) -------------------------------------------------------------------------------
+
+
+def test_same_strategy_priors_after_a_full_cycle_one_returns_the_one_matching_text():
+    strategies_used = ["theory", "example", "simplified", "analogy", "theory"]  # cycle-2 theory just appended
+    prior = ["T1", "E1", "S1", "A1"]
+    assert same_strategy_priors(strategies_used, prior, "theory") == ["T1"]
+
+
+def test_same_strategy_priors_cycle_three_returns_both_earlier_texts_oldest_first():
+    strategies_used = ["theory", "example", "simplified", "analogy", "theory", "example", "simplified", "analogy", "theory"]
+    prior = ["T1", "E1", "S1", "A1", "T2", "E2", "S2", "A2"]
+    assert same_strategy_priors(strategies_used, prior, "theory") == ["T1", "T2"]
+
+
+def test_same_strategy_priors_includes_a_strategy_requested_earlier():
+    # "example" was requested in cycle 1 (trigger does not matter here, only the strategy), and its
+    # text is seen again when "example" is delivered a second time.
+    assert same_strategy_priors(["example", "theory"], ["E1"], "example") == ["E1"]
+
+
+def test_same_strategy_priors_never_delivered_returns_empty_list():
+    strategies_used = ["theory", "example", "simplified", "analogy", "theory"]
+    prior = ["T1", "E1", "S1", "A1"]
+    assert same_strategy_priors(strategies_used, prior, "analogy") == ["A1"]
+    assert same_strategy_priors(["theory", "theory"], ["T1"], "example") == []
+
+
+@pytest.mark.parametrize(
+    "strategies_used, prior",
+    [(["theory", "example"], []), (["theory"], ["T1", "E1"]), (["theory", "example", "simplified"], ["T1"])],
+    ids=["too-few-priors", "too-many-priors", "off-by-more-than-one"],
+)
+def test_same_strategy_priors_returns_none_on_a_length_mismatch(strategies_used, prior):
+    assert same_strategy_priors(strategies_used, prior, "theory") is None
+
+
+def test_same_strategy_priors_off_by_one_guard_does_not_select_the_wrong_text():
+    # four different strategies: shifting prior[i] against strategies_used[i+1] (or [i-1]) would
+    # pick a DIFFERENT text than the correct pairing for every strategy here.
+    strategies_used = ["theory", "example", "simplified", "analogy"]
+    prior = ["T1", "E1", "S1"]  # paired against strategies_used[0:3] by the invariant
+    assert same_strategy_priors(strategies_used, prior, "theory") == ["T1"]
+    assert same_strategy_priors(strategies_used, prior, "example") == ["E1"]
+    assert same_strategy_priors(strategies_used, prior, "simplified") == ["S1"]
+    assert same_strategy_priors(strategies_used, prior, "analogy") == []  # never delivered among the paired entries
 
 
 # --- post-processing ----------------------------------------------------------------------------------------

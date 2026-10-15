@@ -36,9 +36,12 @@ class Settings(BaseSettings):
     # num_predict. Measured: 88% usable at 110 (llama3.2_3b_2026-10-15_np110_r2.json) against 81% at 80
     # (llama3.2_3b_2026-10-15_np80_r2.json).
     LLM_MAX_TOKENS: int = 110
-    # Measured wall p95 11.0 s at 110 tokens (llama3.2_3b_2026-10-15_np110_r2.json) x 1.2, rounded up.
+    # S8b: cycle-2 prompts (from `app/orchestrator.py` passing only the same strategy's priors) are
+    # LONGER than cycle-1 prompts and their measured p95 is the binding one. T = ceil(max(p95_cycle1,
+    # p95_cycle2_same) x 1.2) at num_predict 110: cycle-1 p95 11.0 s (llama3.2_3b_2026-10-15_np110_r2.json),
+    # cycle-2-same p95 14.6 s (llama3.2_3b_2026-10-15_np110_r2_c2same.json); max x 1.2 = 17.52, rounded up.
     # Set from measurement, never from the 3-second latency figure (that is a measurement target).
-    LLM_TIMEOUT_S: float = 14.0
+    LLM_TIMEOUT_S: float = 18.0
 
     # Per-turn research log (R4). OFF by default: it records real student messages, which needs
     # ethics approval first. When set, one JSON line is appended per turn.

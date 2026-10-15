@@ -33,7 +33,7 @@ from app.escalation.request_detector import detect_request
 from app.generation import fixed_copy
 from app.generation.adapters import LLMAdapter, TemplateFallback
 from app.generation.postprocess import finalise, reasoning_leak, would_ship
-from app.generation.prompts import build_prompt
+from app.generation.prompts import build_prompt, same_strategy_priors
 from app.schemas import (
     ConfusionResult,
     LatencyBreakdown,
@@ -114,12 +114,22 @@ async def _explain_text(req: TutorRequest, deps: Deps, strategy: str, state) -> 
         text = deps.templates.get(req.topic, strategy, state.cycle)
         return text, True, _ms(started, time.perf_counter())
     try:
+        priors = same_strategy_priors(
+            [u.strategy for u in state.strategies_used], state.prior_explanations, strategy
+        )
+        if priors is None:
+            logger.warning(
+                "cannot pair prior_explanations with strategies_used (episode %s: %d priors, %d uses); "
+                "passing every prior explanation",
+                state.episode_id, len(state.prior_explanations), len(state.strategies_used),
+            )
+            priors = list(state.prior_explanations)
         prompt = build_prompt(
             topic=req.topic,
             strategy=strategy,
             cycle=state.cycle,
             student_message=req.message,
-            prior_explanations=list(state.prior_explanations),
+            prior_explanations=priors,
         )
         completion = await asyncio.wait_for(deps.adapter.complete(prompt, deps.llm_timeout_s), deps.llm_timeout_s)
         if would_ship(completion.text, strategy, completion.truncated):

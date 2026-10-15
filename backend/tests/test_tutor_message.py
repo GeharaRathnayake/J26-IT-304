@@ -23,6 +23,7 @@ import app.orchestrator as orchestrator
 from app.config import DEFAULT_MODELS_DIR, Settings
 from app.generation.adapters import STRATEGIES, MockAdapter, TemplateError, TemplateFallback
 from app.generation.fixed_copy import CLARIFY, END_UNRESOLVED, OFFER_NEW_CYCLE
+from app.generation.prompts import NO_REPEAT_INSTRUCTION
 from app.main import create_app
 from app.schemas import TutorResponse
 from app.topics import GENERAL, public_topics
@@ -565,6 +566,59 @@ def test_prompt_contains_the_raw_student_message_inside_its_block():
     assert f"<student_message>\n{msg}\n</student_message>" in adapter.prompts[0]
 
 
+def _raw_body(message: str, state: dict) -> dict:
+    return {
+        "request_id": "req-1", "student_id": "stu_1", "session_id": "sess_1", "topic": "inheritance",
+        "message": message, "history": [], "state": state,
+    }
+
+
+def _cycle1_complete_state(prior_explanations: list[str]) -> dict:
+    return {
+        "episode_id": "ep_s8b_test",
+        "cycle": 1,
+        "strategies_used": [
+            {"strategy": "theory", "trigger": "default"},
+            {"strategy": "example", "trigger": "confusion"},
+            {"strategy": "simplified", "trigger": "confusion"},
+            {"strategy": "analogy", "trigger": "confusion"},
+        ],
+        "awaiting_cycle_confirmation": True,
+        "prior_explanations": prior_explanations,
+    }
+
+
+def test_cycle_two_theory_prompt_carries_only_the_cycle_one_theory_text():
+    state = _cycle1_complete_state(["THEORY_MARKER_1", "EXAMPLE_MARKER_1", "SIMPLIFIED_MARKER_1", "ANALOGY_MARKER_1"])
+    adapter = MockAdapter()
+    with TestClient(make_app(adapter=adapter, LLM_PROVIDER="mock")) as c:
+        r = c.post("/tutor/message", json=_raw_body("yes", state))
+    assert r.status_code == 200
+    res = r.json()
+    assert (res["action"], res["strategy"], res["updated_state"]["cycle"]) == ("explain", "theory", 2)
+    prompt = adapter.prompts[-1]
+    assert "Explanation cycle: 2" in prompt and NO_REPEAT_INSTRUCTION in prompt
+    assert "THEORY_MARKER_1" in prompt
+    for marker in ("EXAMPLE_MARKER_1", "SIMPLIFIED_MARKER_1", "ANALOGY_MARKER_1"):
+        assert marker not in prompt
+
+
+def test_a_mismatched_echoed_state_falls_back_to_every_prior_with_exactly_one_warning(warnings_and_errors):
+    # prior_explanations has 1 entry but strategies_used has 4: the pairing is unknowable.
+    state = _cycle1_complete_state(["ONLY_ONE_MARKER_zebra"])
+    adapter = MockAdapter()
+    with TestClient(make_app(adapter=adapter, LLM_PROVIDER="mock")) as c:
+        r = c.post("/tutor/message", json=_raw_body("yes", state))
+    assert r.status_code == 200
+    prompt = adapter.prompts[-1]
+    assert "ONLY_ONE_MARKER_zebra" in prompt  # the mismatch falls back to passing everything
+    warnings = [rec.getMessage() for rec in warnings_and_errors.records if rec.levelno == logging.WARNING]
+    mismatches = [w for w in warnings if "cannot pair prior_explanations" in w]
+    assert len(mismatches) == 1
+    assert "ep_s8b_test" in mismatches[0]
+    assert "yes" not in mismatches[0] and "ONLY_ONE_MARKER_zebra" not in mismatches[0]
+
+
 def test_prior_explanations_grow_by_the_reply_each_explain_turn(client):
     res = Episode(client).play(CONFUSED, CONFUSED, CONFUSED)
     for i, r in enumerate(res, start=1):
@@ -595,7 +649,7 @@ def test_settings_defaults(monkeypatch):
         monkeypatch.delenv(var, raising=False)
     s = Settings(_env_file=None)
     assert (s.LLM_PROVIDER, s.LLM_MODEL, s.LLM_MAX_TOKENS, s.LLM_TIMEOUT_S, s.TURN_LOG_PATH) == (
-        "ollama", "llama3.2:3b", 110, 14.0, None
+        "ollama", "llama3.2:3b", 110, 18.0, None
     )
     assert s.OLLAMA_URL == "http://127.0.0.1:11434"  # 127.0.0.1, not localhost (IPv6 lookup delay on Windows)
 

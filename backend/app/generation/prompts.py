@@ -55,6 +55,20 @@ def neutralise(untrusted: str) -> str:
     return _TAG_LIKE.sub("[tag removed]", untrusted)
 
 
+def same_strategy_priors(
+    strategies_used: list[str], prior_explanations: list[str], strategy: str
+) -> list[str] | None:
+    """The earlier explanations of THIS strategy only, oldest first (S8b). A requested delivery
+    counts: a student who asked for theory in cycle 1 has seen that theory.
+
+    `prior_explanations[i]` is the text of delivery `strategies_used[i]` (the alignment invariant);
+    if the lengths do not fit that pairing, it is unknowable and this returns None rather than
+    guessing. The caller then falls back to passing every prior explanation."""
+    if len(prior_explanations) != len(strategies_used) - 1:
+        return None
+    return [text for text, used in zip(prior_explanations, strategies_used) if used == strategy]
+
+
 def _topic_line(topic: str) -> str:
     if topic == GENERAL:
         return _GENERAL_WORDING
