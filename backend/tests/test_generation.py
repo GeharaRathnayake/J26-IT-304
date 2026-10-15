@@ -6,6 +6,7 @@ the research contribution.
 
 import asyncio
 import functools
+import difflib
 import re
 from typing import get_args
 
@@ -102,12 +103,12 @@ def test_all_60_topic_strategy_entries_exist():
     assert len(TOPIC_IDS) * len(STRATEGIES) == 60
 
 
-def test_inheritance_has_two_variants_per_strategy_and_every_other_entry_has_one():
+def test_inheritance_and_general_have_two_variants_per_strategy_and_every_other_entry_has_one():
     for topic in TOPIC_IDS:
         for strategy in STRATEGIES:
-            want = 2 if topic == "inheritance" else 1
+            want = 2 if topic in ("inheritance", GENERAL) else 1
             assert len(TEMPLATES.variants(topic, strategy)) == want, (topic, strategy)
-    assert len(ALL_TEXTS) == 64
+    assert len(ALL_TEXTS) == 68
 
 
 def test_the_raw_file_never_contains_the_banned_word():
@@ -267,6 +268,31 @@ def test_inheritance_example_variants_use_different_classes():
     one, two = TEMPLATES.variants("inheritance", "example")
     assert "Dog" in one and "Circle" not in one
     assert "Circle" in two and "Dog" not in two
+
+
+@pytest.mark.parametrize("strategy", STRATEGIES)
+def test_general_cycle_two_differs_from_cycle_one(strategy):
+    one, two = TEMPLATES.get(GENERAL, strategy, 1), TEMPLATES.get(GENERAL, strategy, 2)
+    assert one != two
+    first_sentence = lambda t: re.split(r"(?<=[.!?:])\s", t.strip(), maxsplit=1)[0]  # noqa: E731
+    assert first_sentence(one) != first_sentence(two)
+    if strategy == "example":
+        block = lambda t: re.search(r"^```java\n(.*?)^```", t, re.DOTALL | re.MULTILINE).group(1)  # noqa: E731
+        assert block(one) != block(two)
+
+
+def test_general_example_variants_use_different_classes():
+    one, two = TEMPLATES.variants(GENERAL, "example")
+    assert "Demo" in one and "Greeter" not in one
+    assert "Greeter" in two and "Demo" not in two
+
+
+@pytest.mark.parametrize("topic", ["inheritance", GENERAL])
+@pytest.mark.parametrize("strategy", STRATEGIES)
+def test_the_two_variants_are_not_a_reworded_copy(topic, strategy):
+    """Catches a second variant that is the first with a word changed. Measured ratios are 0.10-0.25."""
+    v1, v2 = TEMPLATES.variants(topic, strategy)
+    assert difflib.SequenceMatcher(None, v1, v2).ratio() < 0.35
 
 
 # --- fixed copy ---------------------------------------------------------------------------------------

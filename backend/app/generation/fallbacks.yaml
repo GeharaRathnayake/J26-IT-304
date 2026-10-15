@@ -564,6 +564,10 @@ templates:
         Let's start from the definition. Every Java concept comes with a precise meaning, a few key rules, and some common mistakes. Tell me the word or the line of code you are unsure about, and I will give you its definition and rules in beginner-friendly terms.
 
         **Check:** Which word or line of code would you like me to define first?
+      - |
+        A good definition has three parts: what the thing is, when you would use it, and the mistake people most often make with it. Send me the Java term you want to pin down and we will build those three parts together, using plain words first and Java syntax second.
+
+        **Check:** Which Java term would you like to pin down in those three parts?
     example:
       - |
         Let's work through a small case together:
@@ -581,13 +585,43 @@ templates:
         Reading it line by line, `x` starts as 2, then becomes 5, and 5 is printed. Tracing a few lines like this is a good way to check any idea you are unsure about.
 
         **Check:** What would be printed if we added `x = x * 2;` before the `println` line?
+      - |
+        Now a case where the program has to choose between two actions:
+
+        ```java
+        public class Greeter {
+            static String greet(String name) {
+                if (name.length() > 5) {
+                    return "Hello, " + name;
+                }
+                return "Hi";
+            }
+
+            public static void main(String[] args) {
+                System.out.println(greet("Sam"));
+                System.out.println(greet("Alexandra"));
+            }
+        }
+        ```
+
+        `greet("Sam")` returns `Hi`, because three letters is not more than 5, and `greet("Alexandra")` returns `Hello, Alexandra`. When code surprises you, ask which condition was true, and the branch it picks will explain the output.
+
+        **Check:** What would `greet("Priya")` return?
     simplified:
       - |
         Let's take it one small step at a time. First, say in your own words what you are trying to do. Then we will find the single Java idea that does it and look at that idea on its own.
 
         **Check:** In one sentence, what are you trying to make your program do?
+      - |
+        Let's shrink it down. Most programs have three parts: what goes in, what happens to it, and what comes out. Tell me what goes in and what you want to come out, and we will fill in the middle one step at a time.
+
+        **Check:** What is the input, and what output do you want from it?
     analogy:
       - |
         Learning a new programming idea is a bit like learning a new route: it helps to compare it with a route you already know. Think of something familiar, such as following a recipe or giving directions, and we can map each step of it onto Java. Tell me the idea you are working on and I will build the comparison.
 
         **Check:** What everyday process do you know well that we could compare Java to?
+      - |
+        Think of a program as a kitchen. The variables are the labelled jars on the shelf, each holding one ingredient. The statements are the steps you do in order, and the finished dish is the output. Tell me the part you are stuck on and I will point to where it sits in the kitchen.
+
+        **Check:** In this kitchen picture, which part would you say is giving you trouble: the jars, the steps, or the dish?
