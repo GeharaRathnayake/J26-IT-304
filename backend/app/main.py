@@ -43,7 +43,9 @@ def _configure_logging() -> None:
 
 
 class HealthResponse(BaseModel):
-    """Mirrors HealthResponse in frontend/src/features/tutor/api/types.ts."""
+    """Mirrors HealthResponse in frontend/src/features/tutor/api/types.ts, plus ONE additive,
+    backend-only diagnostic field (`llm_gpu_fraction`). Safe because the frontend's Zod schema is a
+    plain z.object that strips unknown keys (07 section 2 rule 5)."""
 
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
 
@@ -51,6 +53,9 @@ class HealthResponse(BaseModel):
     model_loaded: bool
     llm_reachable: bool
     model_version: str | None
+    # size_vram / size of the LLM from Ollama's /api/ps: 1.0 fully on GPU, 0.0 fully on CPU, None
+    # unknown (probe failed, model not resident, or not the ollama provider). Below 1.0 = slower replies.
+    llm_gpu_fraction: float | None
 
 
 class ModelInfo(BaseModel):
@@ -97,6 +102,17 @@ async def _warm_up(adapter: LLMAdapter, model: str) -> None:
         )
         return
     logger.info("LLM warm-up done: %s loaded in %.1f s", model, time.perf_counter() - started)
+    # Placement is fixed when the model loads (and kept for keep_alive): observe it, never assume it.
+    # A failing probe is None, never an exception, and never fails startup.
+    fraction = await adapter.placement(HEALTH_CHECK_TIMEOUT_S)
+    meaning = "1.0 = fully on GPU, 0.0 = fully on CPU, None = unknown"
+    if fraction is not None and fraction < 1.0:
+        logger.warning(
+            "LLM placement: %s gpu_fraction=%s (%s); replies will be slower than measured on the GPU",
+            model, fraction, meaning,
+        )
+    else:
+        logger.info("LLM placement: %s gpu_fraction=%s (%s)", model, fraction, meaning)
 
 
 def create_app(
@@ -211,15 +227,21 @@ def create_app(
         # "running with template responses" banner from this flag. It does not affect `status`: the
         # service still answers (with templates) when the LLM is down.
         llm_reachable = False
+        llm_gpu_fraction: float | None = None
         adapter = getattr(request.app.state, "adapter", None)
         if getattr(request.app.state, "provider", None) == "ollama" and isinstance(adapter, OllamaAdapter):
-            llm_reachable = await adapter.reachable(HEALTH_CHECK_TIMEOUT_S)
+            # Concurrently: /health must not be slower in the worst case than one probe. Neither
+            # probe raises, and placement never changes llm_reachable (different endpoints).
+            llm_reachable, llm_gpu_fraction = await asyncio.gather(
+                adapter.reachable(HEALTH_CHECK_TIMEOUT_S), adapter.placement(HEALTH_CHECK_TIMEOUT_S)
+            )
         return HealthResponse(
             # 'degraded' = verification failed at startup (see lifespan).
             status="ok" if model_loaded else "degraded",
             model_loaded=model_loaded,
             llm_reachable=llm_reachable,
             model_version=model.version if model_loaded else None,
+            llm_gpu_fraction=llm_gpu_fraction,
         )
 
     @app.get("/model-info")

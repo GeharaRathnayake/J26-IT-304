@@ -68,9 +68,11 @@ From `llama3.2_3b_2026-10-15_np110_r2_c2same.json` (48 generations, what the ser
 `c2all` (what S8 sent): 33% over the 18 s timeout, p95 26.3 s.
 
 In plain words: at 18 s, cycle-2 replies are generated rather than timing out, but about 1 in 7 is
-still replaced by the template because it fails `would_ship`. The templates' cycle-2 variants carry
-C3 (dynamically different explanations across cycles) whatever the LLM does, and each turn's
-`meta.fallback` records which one — template or model — the student actually got. These numbers say
+still replaced by the template because it fails `would_ship`. On the template path C3 (dynamically
+different explanations across cycles) holds only for `inheritance` and `general`, which have a second
+variant: the other 13 topics repeat their cycle-1 template in cycle 2 (generalising them is PP2). The
+approved scope of C3 is: shown on the LLM path, and on the template path for `inheritance` and
+`general`. Each turn's `meta.fallback` records which one — template or model — the student actually got. These numbers say
 nothing about whether a generated cycle-2 reply reads as different or non-repetitive from its
 cycle-1 counterpart; nothing here measured that.
 

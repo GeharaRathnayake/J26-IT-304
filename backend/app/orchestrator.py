@@ -182,7 +182,7 @@ async def handle_turn(req: TutorRequest, deps: Deps) -> TutorResponse:
     if decision.action == "explain":
         text, fallback, llm_ms = await _explain_text(req, deps, decision.strategy, state)
         # The engine leaves prior_explanations alone on purpose; the prompt builder needs it from
-        # cycle 2 to avoid repeating itself (claim C3).
+        # cycle 2 to avoid repeating itself (claim C3, LLM path).
         state = state.model_copy(update={"prior_explanations": [*state.prior_explanations, text]})
     else:
         text = _fixed_text(decision.action, decision.winning_strategy)

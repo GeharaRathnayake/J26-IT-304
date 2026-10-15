@@ -14,6 +14,7 @@ from typing import Any, Protocol, get_args
 import httpx
 import yaml
 
+from app.generation.placement import gpu_fraction
 from app.generation.postprocess import CHECK
 from app.schemas import Strategy
 from app.topics import GENERAL, public_topics
@@ -121,6 +122,17 @@ class OllamaAdapter:
         except Exception:
             return False
         return self.model in names
+
+    async def placement(self, timeout_s: float = 1.0) -> float | None:
+        """GET /api/ps, then the shared `gpu_fraction`: 1.0 fully on GPU, 0.0 fully on CPU, None when
+        unknown. Any failure is None, never 0.0 and never an exception."""
+        try:
+            resp = await self.client.get(f"{self.base_url}/api/ps", timeout=timeout_s)
+            if not resp.is_success:
+                return None
+            return gpu_fraction(resp.json(), self.model)
+        except Exception:
+            return None
 
 
 class TemplateError(ValueError):

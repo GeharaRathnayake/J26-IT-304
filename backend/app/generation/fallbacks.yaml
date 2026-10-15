@@ -1,8 +1,11 @@
-# Template replies: the fallback the PP1 demo runs on before any LLM exists. Not the research contribution.
+# Template replies: the deterministic fallback for any reply the LLM (the default provider) does not
+# deliver, and the whole reply under LLM_PROVIDER=template. Not the research contribution.
 # One entry per accepted topic (14 topics + the reserved slug "general") x strategy (theory, example,
 # simplified, analogy) = 60 entries. Each entry is a LIST of variants; the variant for a cycle is
-# variants[(cycle - 1) % len(variants)]. `inheritance` (the demo topic) has two variants per strategy so a
-# second cycle shows a genuinely different explanation (claim C3); every other entry has one for now.
+# variants[(cycle - 1) % len(variants)]. `inheritance` (the demo topic) and `general` (no topic chosen)
+# have two variants per strategy; every other entry has one, so for those 13 topics cycle 2 repeats
+# the cycle-1 template (generalising them is PP2). Claim C3 is therefore: shown on the LLM path, and on
+# the template path for `inheritance` and `general`.
 #
 # Format rules (checked at load by TemplateFallback): Markdown; Java only in fenced ```java blocks;
 # exactly one "**Check:**" line and it is the last non-empty line; every example has a closed ```java

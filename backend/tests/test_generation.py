@@ -290,7 +290,14 @@ def test_general_example_variants_use_different_classes():
 @pytest.mark.parametrize("topic", ["inheritance", GENERAL])
 @pytest.mark.parametrize("strategy", STRATEGIES)
 def test_the_two_variants_are_not_a_reworded_copy(topic, strategy):
-    """Catches a second variant that is the first with a word changed. Measured ratios are 0.10-0.25."""
+    """Catches a second variant that is the first with a word changed. Measured raw ratios are 0.05-0.29; see below for why `example` sits higher.
+
+    Raw vs Java-scaffolding-stripped (class line, main line, lone braces, fence lines), measured by the
+    lead 2026-10-16: inheritance/example 0.150 raw, 0.123 stripped; general/example 0.288 raw, 0.164
+    stripped; every prose strategy raw is about its stripped value. The raw 0.288 is an artefact of
+    shared scaffolding (25% of that text against 16% for inheritance), not of similar content. The
+    earlier "0.10-0.25" band was read off inheritance, not a principled threshold; example is expected
+    to sit higher. The 0.35 bound below is deliberately loose."""
     v1, v2 = TEMPLATES.variants(topic, strategy)
     assert difflib.SequenceMatcher(None, v1, v2).ratio() < 0.35
 

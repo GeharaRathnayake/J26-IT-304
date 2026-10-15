@@ -175,9 +175,20 @@ The tests and curl cannot prove CORS; only a browser can. This is the procedure:
 **If Vite moved to 5174** (its console says `Port 5173 is in use, trying another one`), every
 request fails with a CORS error. The fix is to **free 5173**, not to widen `CORS_ORIGINS`.
 
+An **unhandled 500** response carries no CORS header, because Starlette's `ServerErrorMiddleware`
+sits outside CORS, so a browser would show a network error rather than a 500. No current route
+raises one. **If a future route can raise an unhandled 500, this stops being theoretical and needs a
+custom 500 handler inside the CORS layer.** The 422 and 503 responses the frontend maps do carry the
+header (tested).
+
 ## Behaviour
 
-Expected: `{"status":"ok","model_loaded":true,"llm_reachable":true,"model_version":"clf-v1.0.0"}`.
+Expected: `{"status":"ok","model_loaded":true,"llm_reachable":true,"model_version":"clf-v1.0.0","llm_gpu_fraction":1.0}`.
+`llm_gpu_fraction` is a backend-only diagnostic (the frontend's Zod schema strips it): Ollama's
+`size_vram / size` for the model from `GET /api/ps`, `1.0` = fully on the GPU, `0.0` = fully on the CPU,
+`null` = unknown (probe failed, model not resident, or not the `ollama` provider). **A value below
+1.0 means slower replies** (about 13 tok/s on the CPU against about 41 on the GPU on the lab machine);
+the warm-up also logs the placement at startup, at WARNING when it is below 1.0.
 `llm_reachable` is a real check on every call (`GET {OLLAMA_URL}/api/tags`, 1 s timeout): true only
 if Ollama answers **and** `LLM_MODEL` is pulled; always false under the `template` or `mock`
 provider. It does not change `status`: without the LLM the service still answers, with templates

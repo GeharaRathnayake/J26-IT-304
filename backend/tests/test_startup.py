@@ -33,6 +33,7 @@ EXPECTED_HEALTH = {
     "model_loaded": True,
     "llm_reachable": False,
     "model_version": "clf-v1.0.0",
+    "llm_gpu_fraction": None,  # backend-only additive diagnostic; None under the template provider
 }
 
 
@@ -56,10 +57,12 @@ def test_real_model_loads_and_health_is_exact():
     assert resp.json() == EXPECTED_HEALTH
 
 
-def test_health_has_no_extra_fields():
+def test_health_has_the_four_types_ts_fields_plus_exactly_one_additive_field():
     with TestClient(create_app()) as client:
         body = client.get("/health").json()
-    assert set(body) == {"status", "model_loaded", "llm_reachable", "model_version"}
+    types_ts = {"status", "model_loaded", "llm_reachable", "model_version"}
+    assert types_ts <= set(body)
+    assert set(body) - types_ts == {"llm_gpu_fraction"}
 
 
 def test_real_hashes_match_metadata():
@@ -88,6 +91,7 @@ DEGRADED_HEALTH = {
     "model_loaded": False,
     "llm_reachable": False,
     "model_version": None,
+    "llm_gpu_fraction": None,
 }
 
 

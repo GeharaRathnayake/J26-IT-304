@@ -200,5 +200,6 @@ def test_rules_failure_degrades_startup_like_any_verification_failure(tmp_path, 
         app_logger.removeHandler(caplog.handler)
     assert body == {
         "status": "degraded", "model_loaded": False, "llm_reachable": False, "model_version": None,
+        "llm_gpu_fraction": None,
     }
     assert "duplicate phrase" in caplog.text

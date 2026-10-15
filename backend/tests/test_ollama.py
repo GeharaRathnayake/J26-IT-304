@@ -64,18 +64,38 @@ def tags_response(*names):
 class FakeOllama:
     """An async httpx.MockTransport handler shaped like Ollama 0.40's /api/chat and /api/tags."""
 
-    def __init__(self, replies=None, tags=(MODEL,), warmup="ok", delay_s=0.0):
+    def __init__(self, replies=None, tags=(MODEL,), warmup="ok", delay_s=0.0, ps="gpu", probe_delay_s=0.0):
         self.replies = replies or {}  # strategy -> (text, done_reason)
         self.tags = tags
         self.warmup = warmup  # "ok" | "fail" | "hang"
         self.delay_s = delay_s
+        # /api/ps: "gpu" | "cpu" | "unlisted" | "refuse" | "500" | "bad"
+        self.ps = ps
+        self.probe_delay_s = probe_delay_s  # delays /api/tags and /api/ps alike
         self.requests: list[httpx.Request] = []
         self.chat_bodies: list[dict] = []
         self.warmup_bodies: list[dict] = []
 
     async def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
+        if request.url.path == "/api/ps":
+            if self.probe_delay_s:
+                await asyncio.sleep(self.probe_delay_s)
+            if self.ps == "refuse":
+                raise httpx.ConnectError("connection refused", request=request)
+            if self.ps == "500":
+                return httpx.Response(500)
+            if self.ps == "bad":
+                return httpx.Response(200, content=b"<html>")
+            entries = {
+                "gpu": [{"name": MODEL, "size": 3_000_000_000, "size_vram": 3_000_000_000}],
+                "cpu": [{"name": MODEL, "size": 3_000_000_000, "size_vram": 0}],
+                "unlisted": [],
+            }[self.ps]
+            return httpx.Response(200, json={"models": entries})
         if request.url.path == "/api/tags":
+            if self.probe_delay_s:
+                await asyncio.sleep(self.probe_delay_s)
             if self.tags is None:
                 raise httpx.ConnectError("connection refused", request=request)
             return tags_response(*self.tags)
@@ -483,3 +503,124 @@ def test_the_fixture_readme_lists_every_fixture_file():
     assert len(names) == 4
     for name in names:
         assert f"| `{name}` | `dev/frontend/src/features/tutor/api/fixtures/{name}` |" in readme
+
+
+# --- GPU placement (S10b) -----------------------------------------------------------------------------------------------
+
+
+def _placement_of(handler):
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            return await OllamaAdapter(client, "http://ollama.test:11434", MODEL, 110).placement(1.0)
+
+    return run(go())
+
+
+def _ps_handler(models=None, *, status=200, content=None, refuse=False):
+    def handler(request):
+        if refuse:
+            raise httpx.ConnectError("connection refused", request=request)
+        if content is not None:
+            return httpx.Response(status, content=content)
+        return httpx.Response(status, json={"models": models})
+
+    return handler
+
+
+def test_placement_fully_on_gpu_is_one():
+    assert _placement_of(_ps_handler([{"name": MODEL, "size": 100, "size_vram": 100}])) == 1.0
+
+
+def test_placement_fully_on_cpu_is_zero_not_none():
+    assert _placement_of(_ps_handler([{"name": MODEL, "size": 100, "size_vram": 0}])) == 0.0
+
+
+def test_placement_unknown_is_none_never_zero():
+    assert _placement_of(_ps_handler([])) is None  # model not listed
+    assert _placement_of(_ps_handler([{"name": "other", "size": 100, "size_vram": 100}])) is None
+    assert _placement_of(_ps_handler(refuse=True)) is None
+    assert _placement_of(_ps_handler(status=500, content=b"boom")) is None
+    assert _placement_of(_ps_handler(content=b"<html>")) is None
+    assert _placement_of(_ps_handler({"models": "nope"})) is None
+
+
+def test_the_adapter_uses_the_shared_gpu_fraction():
+    import app.generation.adapters as adapters_mod
+    import app.generation.placement as placement_mod
+
+    assert adapters_mod.gpu_fraction is placement_mod.gpu_fraction
+
+
+def test_health_reports_the_placement():
+    with TestClient(make(FakeOllama(ps="gpu"))) as c:
+        assert c.get("/health").json()["llm_gpu_fraction"] == 1.0
+    with TestClient(make(FakeOllama(ps="cpu"))) as c:
+        assert c.get("/health").json()["llm_gpu_fraction"] == 0.0
+
+
+@pytest.mark.parametrize("ps", ["refuse", "500", "bad", "unlisted"])
+def test_a_failing_placement_probe_leaves_health_ok_and_reachable_unchanged(ps):
+    with TestClient(make(FakeOllama(ps=ps))) as c:
+        resp = c.get("/health")
+    body = resp.json()
+    assert resp.status_code == 200
+    assert body["llm_gpu_fraction"] is None
+    assert body["llm_reachable"] is True and body["status"] == "ok"  # /api/tags still lists the model
+
+
+def test_placement_is_reported_even_when_the_model_is_not_pulled():
+    """Different endpoints, each reported honestly: tags says not pulled, ps says it is resident."""
+    with TestClient(make(FakeOllama(tags=(), ps="gpu"))) as c:
+        body = c.get("/health").json()
+    assert body["llm_reachable"] is False and body["llm_gpu_fraction"] == 1.0
+
+
+@pytest.mark.parametrize("provider", ["template", "mock"])
+def test_health_has_no_placement_and_asks_nothing_under_template_and_mock(provider):
+    fake = FakeOllama()
+    with TestClient(make(fake, LLM_PROVIDER=provider)) as c:
+        assert c.get("/health").json()["llm_gpu_fraction"] is None
+    assert [r.url.path for r in fake.requests] == []
+
+
+def test_the_two_health_probes_run_concurrently():
+    """Each probe takes ~0.5 s; run one after the other /health would take ~1.0 s."""
+    fake = FakeOllama(probe_delay_s=0.5)
+    with TestClient(make(fake)) as c:
+        _wait_for_warm_up(c)
+        started = time.perf_counter()
+        body = c.get("/health").json()
+        elapsed = time.perf_counter() - started
+    assert body["llm_reachable"] is True and body["llm_gpu_fraction"] == 1.0
+    assert elapsed < 0.9, elapsed
+
+
+def _infos_and_warnings(caplog):
+    return (
+        [r.getMessage() for r in caplog.records if r.levelno == logging.INFO and "placement" in r.getMessage()],
+        [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING and "placement" in r.getMessage()],
+    )
+
+
+def test_warm_up_logs_placement_at_info_when_fully_on_gpu(app_log):
+    with TestClient(make(FakeOllama(ps="gpu"))) as c:
+        _wait_for_warm_up(c)
+    infos, warns = _infos_and_warnings(app_log)
+    assert warns == []
+    assert any(m.startswith("LLM placement: llama3.2:3b gpu_fraction=1.0") for m in infos)
+
+
+def test_warm_up_warns_when_not_fully_on_gpu(app_log):
+    with TestClient(make(FakeOllama(ps="cpu"))) as c:
+        _wait_for_warm_up(c)
+    infos, warns = _infos_and_warnings(app_log)
+    assert len(warns) == 1 and "gpu_fraction=0.0" in warns[0] and "slower" in warns[0]
+
+
+def test_warm_up_with_unknown_placement_logs_unknown_at_info_without_a_warning(app_log):
+    with TestClient(make(FakeOllama(ps="refuse"))) as c:
+        _wait_for_warm_up(c)
+        assert c.get("/health").status_code == 200  # startup was not failed by the probe
+    infos, warns = _infos_and_warnings(app_log)
+    assert warns == []
+    assert any("gpu_fraction=None" in m and "unknown" in m for m in infos)

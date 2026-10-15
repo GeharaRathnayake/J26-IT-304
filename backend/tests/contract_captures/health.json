@@ -2,5 +2,6 @@
   "status": "ok",
   "model_loaded": true,
   "llm_reachable": false,
-  "model_version": "clf-v1.0.0"
+  "model_version": "clf-v1.0.0",
+  "llm_gpu_fraction": null
 }
