@@ -16,6 +16,7 @@ from app.generation import fixed_copy
 from app.generation.adapters import (
     DEFAULT_TEMPLATES,
     STRATEGIES,
+    Completion,
     MockAdapter,
     TemplateError,
     TemplateFallback,
@@ -494,22 +495,32 @@ def test_mock_adapter_is_deterministic_and_format_correct():
     mock = MockAdapter()
     a = run(mock.complete(prompt(strategy="theory"), 5.0))
     b = run(mock.complete(prompt(strategy="theory"), 5.0))
-    assert a == b
-    assert a.count(CHECK) == 1 and a.splitlines()[-1].startswith(CHECK)
-    assert a == finalise(a, "theory")  # already in the enforced format
+    assert a == b and a.truncated is False
+    assert a.text.count(CHECK) == 1 and a.text.splitlines()[-1].startswith(CHECK)
+    assert a.text == finalise(a.text, "theory")  # already in the enforced format
     assert len(mock.prompts) == 2
 
 
 def test_mock_adapter_example_reply_has_a_java_block():
-    out = run(MockAdapter().complete(prompt(strategy="example"), 5.0))
+    out = run(MockAdapter().complete(prompt(strategy="example"), 5.0)).text
     assert re.search(r"^```java$", out, re.MULTILINE)
     assert out == finalise(out, "example")
 
 
 def test_mock_adapter_returns_a_given_raw_string_verbatim():
     raw = "<think>oops</think> no check line, and   odd  spacing"
-    assert run(MockAdapter(raw=raw).complete("anything", 1.0)) == raw
-    assert run(MockAdapter(raw="").complete("anything", 1.0)) == ""
+    assert run(MockAdapter(raw=raw).complete("anything", 1.0)) == Completion(raw, False)
+    assert run(MockAdapter(raw="").complete("anything", 1.0)) == Completion("", False)
+    assert run(MockAdapter(raw=raw, truncated=True).complete("anything", 1.0)) == Completion(raw, True)
+
+
+def test_completion_is_a_frozen_text_and_truncated_pair():
+    import dataclasses
+
+    c = Completion(text="x", truncated=True)
+    assert [f.name for f in dataclasses.fields(c)] == ["text", "truncated"]
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        c.text = "y"
 
 
 def test_mock_adapter_matches_the_protocol_shape():

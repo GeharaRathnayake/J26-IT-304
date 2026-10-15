@@ -5,13 +5,11 @@ These are mechanical checks on the output FORMAT. Whether an explanation is good
 judgement (the rating sheet), not something this module claims to measure. The tutor itself is a
 prototype; the classifier behind it is a proxy trained on synthetic answers.
 
-THE UNTAGGED REASONING LEAK is a deliberately simple HEURISTIC, reported as one: a line of the
-output starts with a phrase that small "thinking" models use when they narrate their plan instead
-of answering ("We are explaining...", "Let me write in 2-4 sentences:"). Known limits:
- - false negatives: reasoning that does not start a line with one of these phrases;
- - false positives: a legitimate reply that happens to start a line with one ("We are going to
-   look at an example.").
-That is why the human rating exists. The phrase list lives in LEAK_PHRASES, in one place.
+THE UNTAGGED REASONING LEAK is a deliberately simple HEURISTIC, reported as one (known limits in
+app/generation/postprocess.py). That is why the human rating exists.
+
+`reasoning_leak`, `LEAK_PHRASES` and `would_ship` are IMPORTED from the service (S8), never copied:
+the benchmark and the service must judge "would it ship?" by the same function.
 """
 
 from __future__ import annotations
@@ -26,7 +24,13 @@ from typing import Any
 _BACKEND = Path(__file__).resolve().parent.parent
 if str(_BACKEND) not in sys.path:
     sys.path.insert(0, str(_BACKEND))
-from app.generation.postprocess import finalise, has_heading, usable  # noqa: E402  (pure functions)
+from app.generation.postprocess import (  # noqa: E402  (pure functions; one definition, shared with the service)
+    LEAK_PHRASES,
+    finalise,
+    has_heading,
+    reasoning_leak,
+    would_ship,
+)
 
 CHECK = "**Check:**"
 
@@ -34,13 +38,8 @@ CHECK = "**Check:**"
 # nothing in the benchmark is ever stopped at it.
 SERVICE_TIMEOUT_S = 12.0
 
-# One place. Matched case-insensitively at the START of a line (after leading whitespace), as a
-# whole phrase. Add phrases here, nowhere else.
-LEAK_PHRASES = ("We are", "We need to", "Let me", "Okay, so", "First, I", "The user")
+__all__ = ["LEAK_PHRASES", "reasoning_leak", "would_ship"]  # re-exported for the benchmark script
 
-_LEAK_RE = re.compile(
-    r"^[ \t]*(?:" + "|".join(re.escape(p) for p in LEAK_PHRASES) + r")\b", re.IGNORECASE | re.MULTILINE
-)
 _THINK_RE = re.compile(r"</?think>", re.IGNORECASE)
 _FENCED_CLOSED = re.compile(r"^[ \t]*```[^\n]*\n.*?^[ \t]*```[ \t]*$", re.DOTALL | re.MULTILINE)
 _JAVA_BLOCK = re.compile(r"^[ \t]*```java[^\n]*\n.*?^[ \t]*```[ \t]*$", re.DOTALL | re.MULTILINE)
@@ -114,11 +113,6 @@ def has_think_tag(text: str) -> bool:
     return _THINK_RE.search(text) is not None
 
 
-def reasoning_leak(text: str) -> bool:
-    """HEURISTIC (see the module docstring)."""
-    return _LEAK_RE.search(text) is not None
-
-
 def truncated(done_reason: str | None) -> bool:
     return done_reason == "length"
 
@@ -140,15 +134,6 @@ def score_raw(raw: str, strategy: str, done_reason: str | None) -> dict[str, Any
     }
 
 
-def would_ship(raw: str, strategy: str, done_reason: str | None) -> bool:
-    """The decisive question: would this reply be served to a student? It must be `usable` after the
-    deterministic post-processing (with the truncation flag from done_reason) AND must not be an
-    untagged reasoning leak (lead ruling: a leak disqualifies, and `usable` alone is a format check
-    that a leaked sentence would pass)."""
-    cut = truncated(done_reason)
-    return usable(raw, strategy, cut) and not reasoning_leak(finalise(raw, strategy, cut))
-
-
 def score_final(final: str) -> dict[str, Any]:
     """After `finalise`: Check, sentences, think tags (must be zero) and the leak heuristic."""
     return {
@@ -163,7 +148,7 @@ def score_final(final: str) -> dict[str, Any]:
 def score_generation(raw: str, final: str, strategy: str, done_reason: str | None) -> dict[str, Any]:
     """`final` is the SHIPPED text: finalise(raw, strategy, truncated=done_reason == "length")."""
     shipped = score_final(final)
-    shipped["usable"] = would_ship(raw, strategy, done_reason)
+    shipped["usable"] = would_ship(raw, strategy, truncated(done_reason))
     shipped["java_complete"] = has_java_block(final)
     return {"score_raw": score_raw(raw, strategy, done_reason), "score_final": shipped}
 
@@ -194,7 +179,7 @@ def _usable_of(g: dict) -> bool | None:
         return g["score_final"]["usable"]
     if g.get("raw_text") is None:
         return None
-    return would_ship(g["raw_text"], g["strategy"], g.get("done_reason"))
+    return would_ship(g["raw_text"], g["strategy"], truncated(g.get("done_reason")))
 
 
 def _java_complete_of(g: dict) -> bool | None:

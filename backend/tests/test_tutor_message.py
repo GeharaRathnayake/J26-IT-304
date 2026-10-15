@@ -349,12 +349,25 @@ def test_a_request_with_model_sourced_confusion_and_no_rule_phrase_stays_a_reque
 
 
 def test_documented_limitation_requesting_a_strategy_already_counted_in_the_cycle_stays_a_request(client):
+    """Plan `04` §3.1a: the confusion override cannot apply to a strategy already delivered as a counted
+    delivery in the current cycle (counting a repeat would put five counted deliveries in a cycle and
+    break the cycle derivation of §3.1), so the repeat stays `trigger: request`.
+
+    The limitation is in the AGGREGATE (`counted_strategies`), not the RECORD: the repeat is still in
+    `episode_log.deliveries` with `trigger: "request"`, which this test pins. The PP2 fix is a
+    per-delivery `counted` flag, which is a contract change (frozen frontend types), so not in PP1."""
     ep = Episode(client)
     first = ep.play(CONFUSED)[0]
     assert first["strategy"] == "theory"
     again = ep.play("I don't understand, explain the theory again")[0]
     assert again["confusion"]["source"] == "rule"
     assert (again["strategy"], again["trigger"]) == ("theory", "request")  # not counted again
+    terminal = ep.play("got it")[0]
+    assert terminal["action"] == "resolved"
+    log = terminal["episode_log"]
+    # the first theory is the episode opener (trigger "default"); the confused repeat IS recorded
+    assert [(d["strategy"], d["trigger"]) for d in log["deliveries"]] == [("theory", "default"), ("theory", "request")]
+    assert log["counted_strategies"] == 1  # but the aggregate counts only the opener
 
 
 def test_a_plain_request_with_no_confusion_stays_a_request(client):
@@ -524,8 +537,10 @@ def test_a_failing_llm_serves_the_template_with_fallback_true_and_a_warning(adap
     assert res["response"] == TEMPLATES.get("inheritance", "theory", 1)
     assert time.perf_counter() - started < 10  # the 30 s hang was cut off by the timeout
     warnings = [rec for rec in warnings_and_errors.records if rec.levelno == logging.WARNING]
-    assert any("LLM generation failed" in rec.getMessage() for rec in warnings)
+    reason = "(RuntimeError)" if isinstance(adapter, Boom) else "(timeout)"
+    assert [rec.getMessage() for rec in warnings if "LLM reply not served" in rec.getMessage() and reason in rec.getMessage()]
     assert secret not in warnings_and_errors.text  # never the student text
+    assert "model crashed" not in warnings_and_errors.text  # nor the exception message
 
 
 def test_cycle_two_prompt_carries_prior_explanations_and_cycle_one_does_not():
@@ -562,16 +577,27 @@ def test_prior_explanations_grow_by_the_reply_each_explain_turn(client):
 # --- startup and settings ----------------------------------------------------------------------------------------------------------
 
 
-def test_unknown_llm_provider_fails_at_startup_with_a_clear_message():
-    with pytest.raises(ValueError, match="ollama.*not supported yet"):
-        Settings(_env_file=None, LLM_PROVIDER="ollama")
+@pytest.mark.parametrize("value", ["openai", "Ollama", "", "llama3.2:3b"])
+def test_unknown_llm_provider_fails_at_startup_with_a_clear_message(value):
+    with pytest.raises(ValueError, match="not supported; use 'ollama', 'template' or 'mock'"):
+        Settings(_env_file=None, LLM_PROVIDER=value)
+
+
+def test_unknown_llm_provider_from_the_environment_fails_too(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "bogus")
+    with pytest.raises(ValueError, match="not supported"):
+        Settings(_env_file=None)
 
 
 def test_settings_defaults(monkeypatch):
-    for var in ("LLM_PROVIDER", "LLM_TIMEOUT_S", "TURN_LOG_PATH"):
+    # The project owner's decision (D2): the LLM is the default provider, the template the safety net.
+    for var in ("LLM_PROVIDER", "LLM_MODEL", "OLLAMA_URL", "LLM_MAX_TOKENS", "LLM_TIMEOUT_S", "TURN_LOG_PATH"):
         monkeypatch.delenv(var, raising=False)
     s = Settings(_env_file=None)
-    assert (s.LLM_PROVIDER, s.LLM_TIMEOUT_S, s.TURN_LOG_PATH) == ("template", 8.0, None)
+    assert (s.LLM_PROVIDER, s.LLM_MODEL, s.LLM_MAX_TOKENS, s.LLM_TIMEOUT_S, s.TURN_LOG_PATH) == (
+        "ollama", "llama3.2:3b", 110, 14.0, None
+    )
+    assert s.OLLAMA_URL == "http://127.0.0.1:11434"  # 127.0.0.1, not localhost (IPv6 lookup delay on Windows)
 
 
 def test_a_broken_template_file_fails_startup_loudly(tmp_path, monkeypatch):

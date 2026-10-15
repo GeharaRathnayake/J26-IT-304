@@ -1,11 +1,17 @@
 """Smoke test: drive a full tutoring episode against a RUNNING server, as the frontend would.
 
-    .venv\\Scripts\\python scripts\\smoke_episode.py [--url http://127.0.0.1:8001] [--expect-fallback true|false]
+    .venv\\Scripts\\python scripts\\smoke_episode.py [--url http://127.0.0.1:8001] [--expect-fallback auto|true|false|any]
 
 It keeps `history` and `state` exactly as the frontend's reducer.ts does (the current message is
 not in `history`; a tutor reply carries `strategy` only when it delivered one; `state` is the
-reply's `updated_state`, verbatim), prints one line per turn and the final episode-log summary,
-and exits NON-ZERO if any contract item is violated. Also a rehearsal tool for the demo (B10).
+reply's `updated_state`, verbatim), prints one line per turn (with `meta.llm`, `meta.fallback` and
+the latencies) and the final episode-log summary, and exits NON-ZERO if any contract item is
+violated. Also a rehearsal tool for the demo (B10).
+
+`meta.fallback` on `explain` turns: `auto` (the default) requires true under the template provider
+and accepts either under ollama (a reply that would not ship is replaced by the template) or mock;
+`true` / `false` require that value on every explain turn; `any` accepts either. Fixed-copy turns
+(offer, clarify, resolved, end) always carry `fallback == (meta.llm == "template")`.
 
 The classifier behind the labels is a prototype proxy trained on synthetic answers, not a
 validated confusion detector. Depends on httpx only (no app imports), so it works against any
@@ -17,6 +23,7 @@ from __future__ import annotations
 import argparse
 import copy
 import sys
+import time
 
 import httpx
 
@@ -40,7 +47,19 @@ EPISODE = (
 TS = "2026-10-14T10:00:00Z"
 
 
-def contract_violations(res: dict, request_id: str, expect_fallback: bool | None) -> list[str]:
+AUTO = "auto"
+
+
+def expected_fallback(action: str | None, llm: str | None, expect_fallback) -> bool | None:
+    """The meta.fallback this turn must carry, or None when either value is acceptable."""
+    if action != "explain":
+        return llm == "template"  # fixed copy: a "fallback" only in the sense that no LLM is configured
+    if expect_fallback == AUTO:
+        return True if llm == "template" else None
+    return expect_fallback
+
+
+def contract_violations(res: dict, request_id: str, expect_fallback) -> list[str]:
     bad: list[str] = []
     if set(res) != RESPONSE_KEYS:
         bad.append(f"response keys differ from the contract: {sorted(set(res) ^ RESPONSE_KEYS)}")
@@ -65,10 +84,15 @@ def contract_violations(res: dict, request_id: str, expect_fallback: bool | None
     elif res.get("strategy") is not None or res.get("trigger") is not None:
         bad.append("strategy/trigger must be null unless the action is explain")
     meta = res.get("meta") or {}
+    llm = meta.get("llm")
+    if not isinstance(llm, str) or not llm:
+        bad.append("meta.llm missing")
     if "fallback" not in meta:
         bad.append("meta.fallback missing")
-    elif expect_fallback is not None and meta["fallback"] is not expect_fallback:
-        bad.append(f"meta.fallback is {meta['fallback']}, expected {expect_fallback}")
+    else:
+        want = expected_fallback(action, llm, expect_fallback)
+        if want is not None and meta["fallback"] is not want:
+            bad.append(f"meta.fallback is {meta['fallback']}, expected {want} ({action}, llm={llm})")
     prob = (res.get("confusion") or {}).get("probability")
     if not isinstance(prob, (int, float)) or isinstance(prob, bool) or not 0 <= prob <= 1:
         bad.append("confusion.probability is not a number in [0, 1]")
@@ -78,7 +102,7 @@ def contract_violations(res: dict, request_id: str, expect_fallback: bool | None
     return bad
 
 
-def run_episode(client, topic: str = TOPIC, expect_fallback: bool | None = True, messages=EPISODE):
+def run_episode(client, topic: str = TOPIC, expect_fallback=AUTO, messages=EPISODE):
     """Returns (rows, violations, final_log). `client` is an httpx.Client-like object."""
     history: list[dict] = []
     state = None
@@ -93,7 +117,9 @@ def run_episode(client, topic: str = TOPIC, expect_fallback: bool | None = True,
             "history": copy.deepcopy(history), "state": copy.deepcopy(state),
         }
         history.append({"role": "student", "text": message, "ts": TS})  # SEND_STARTED
+        sent = time.perf_counter()
         r = client.post("/tutor/message", json=body)
+        wall_ms = (time.perf_counter() - sent) * 1000.0
         if r.status_code != 200:
             violations.append(f"turn {n}: HTTP {r.status_code}: {r.text[:200]}")
             break
@@ -109,8 +135,9 @@ def run_episode(client, topic: str = TOPIC, expect_fallback: bool | None = True,
             "n": n, "message": message, "action": res["action"], "strategy": res["strategy"],
             "trigger": res["trigger"], "cycle": state["cycle"],
             "flag": state["awaiting_cycle_confirmation"], "fallback": meta.get("fallback"),
+            "llm_label": meta.get("llm"),
             "classify": meta["latency_ms"]["classify"], "llm": meta["latency_ms"]["llm"],
-            "total": meta["latency_ms"]["total"], "text": res["response"],
+            "total": meta["latency_ms"]["total"], "wall": wall_ms, "text": res["response"],
         })
         if res.get("episode_log"):
             final_log = res["episode_log"]
@@ -136,10 +163,11 @@ def run_episode(client, topic: str = TOPIC, expect_fallback: bool | None = True,
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--url", default="http://127.0.0.1:8001")
-    ap.add_argument("--expect-fallback", choices=["true", "false", "any"], default="true")
+    ap.add_argument("--expect-fallback", choices=["auto", "true", "false", "any"], default="auto")
     args = ap.parse_args(argv)
-    expect = {"true": True, "false": False, "any": None}[args.expect_fallback]
+    expect = {"auto": AUTO, "true": True, "false": False, "any": None}[args.expect_fallback]
     try:
+        # 30 s: above the service's own LLM timeout (14 s), so a slow model shows up as a fallback, not here.
         with httpx.Client(base_url=args.url, timeout=30.0) as client:
             health = client.get("/health").json()
             print(f"health: {health}")
@@ -148,12 +176,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"cannot reach the server at {args.url}: {exc!r}", file=sys.stderr)
         return 2
 
-    print(f"{'#':>2} {'action':<16} {'strategy':<10} {'trigger':<10} {'cycle':>5} {'flag':<5} {'fallback':<8} "
-          f"{'classify':>9} {'llm':>8} {'total':>8}  message")
+    print(f"{'#':>2} {'action':<16} {'strategy':<10} {'trigger':<10} {'cycle':>5} {'flag':<5} {'meta.llm':<19} "
+          f"{'fallback':<8} {'classify':>9} {'llm':>10} {'total':>10} {'wall':>10}  message")
     for r in rows:
         print(f"{r['n']:>2} {r['action']:<16} {str(r['strategy']):<10} {str(r['trigger']):<10} {r['cycle']:>5} "
-              f"{str(r['flag']):<5} {str(r['fallback']):<8} {r['classify']:>7.2f}ms {r['llm']:>6.2f}ms "
-              f"{r['total']:>6.2f}ms  {r['message']!r}")
+              f"{str(r['flag']):<5} {str(r['llm_label']):<19} {str(r['fallback']):<8} {r['classify']:>7.2f}ms "
+              f"{r['llm']:>8.1f}ms {r['total']:>8.1f}ms {r['wall']:>8.1f}ms  {r['message']!r}")
+    explains = [r for r in rows if r["action"] == "explain"]
+    print(f"\nexplain turns: {len(explains)}; generated (fallback false): "
+          f"{sum(1 for r in explains if r['fallback'] is False)}; fell back to the template (fallback true): "
+          f"{sum(1 for r in explains if r['fallback'] is True)}")
     if log:
         print("\nepisode log: outcome={outcome} cycles={cycles} deliveries={n} counted={counted} "
               "requested={requested} winning={winning} is_weak={weak}".format(

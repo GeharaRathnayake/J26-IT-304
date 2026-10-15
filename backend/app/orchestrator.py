@@ -32,7 +32,7 @@ from app.escalation.episode_log import EpisodeLogError, build_episode_log, utc_n
 from app.escalation.request_detector import detect_request
 from app.generation import fixed_copy
 from app.generation.adapters import LLMAdapter, TemplateFallback
-from app.generation.postprocess import finalise
+from app.generation.postprocess import finalise, reasoning_leak, would_ship
 from app.generation.prompts import build_prompt
 from app.schemas import (
     ConfusionResult,
@@ -75,9 +75,12 @@ class Deps:
     model: LoadedModel
     cfg: EngineConfig
     templates: TemplateFallback
-    provider: str  # "template" | "mock"
+    provider: str  # "template" | "mock" | "ollama"
     adapter: LLMAdapter | None = None
-    llm_timeout_s: float = 8.0
+    llm_timeout_s: float = 14.0
+    # meta.llm: "template", "mock" or f"ollama:{LLM_MODEL}" (also on a fallback turn, where
+    # meta.fallback says the template was served). Defaults to `provider`.
+    llm_label: str | None = None
     weak_threshold: int = 3
     now: Callable[[], datetime] = utc_now
     new_episode_id: Callable[[], str] = default_episode_id
@@ -103,7 +106,9 @@ def _consecutive_student_turns(history) -> int:
 
 
 async def _explain_text(req: TutorRequest, deps: Deps, strategy: str, state) -> tuple[str, bool, float]:
-    """Returns (text, fallback, llm_ms)."""
+    """Returns (text, fallback, llm_ms). A generated reply is served only if `would_ship` says so;
+    otherwise the template is served (fallback True) with ONE warning naming the reason. The warning
+    never contains the student text or the model output."""
     started = time.perf_counter()
     if deps.provider == "template":
         text = deps.templates.get(req.topic, strategy, state.cycle)
@@ -116,13 +121,21 @@ async def _explain_text(req: TutorRequest, deps: Deps, strategy: str, state) -> 
             student_message=req.message,
             prior_explanations=list(state.prior_explanations),
         )
-        raw = await asyncio.wait_for(deps.adapter.complete(prompt, deps.llm_timeout_s), deps.llm_timeout_s)
-        text = finalise(raw, strategy)
-        return text, False, _ms(started, time.perf_counter())
-    except Exception as exc:  # any failure or timeout: serve the template, say so, never the student text
-        logger.warning("LLM generation failed (%s); serving the template fallback", type(exc).__name__)
-        text = deps.templates.get(req.topic, strategy, state.cycle)
-        return text, True, _ms(started, time.perf_counter())
+        completion = await asyncio.wait_for(deps.adapter.complete(prompt, deps.llm_timeout_s), deps.llm_timeout_s)
+        if would_ship(completion.text, strategy, completion.truncated):
+            text = finalise(completion.text, strategy, completion.truncated)
+            return text, False, _ms(started, time.perf_counter())
+        reason = "reasoning_leak" if reasoning_leak(finalise(completion.text, strategy, completion.truncated)) else "not_usable"
+    except (asyncio.TimeoutError, TimeoutError):
+        reason = "timeout"
+    except Exception as exc:  # any other failure: the error TYPE only, never its message (it may echo text)
+        reason = type(exc).__name__
+    logger.warning(
+        "LLM reply not served (%s); serving the template fallback (topic=%s strategy=%s cycle=%d)",
+        reason, req.topic, strategy, state.cycle,
+    )
+    text = deps.templates.get(req.topic, strategy, state.cycle)
+    return text, True, _ms(started, time.perf_counter())
 
 
 async def handle_turn(req: TutorRequest, deps: Deps) -> TutorResponse:
@@ -195,7 +208,7 @@ async def handle_turn(req: TutorRequest, deps: Deps) -> TutorResponse:
         episode_log=episode_log,
         meta=ResponseMeta(
             model_version=deps.model.version,
-            llm=deps.provider,
+            llm=deps.llm_label or deps.provider,
             latency_ms=LatencyBreakdown(
                 classify=classify_ms, llm=llm_ms, total=_ms(t0, time.perf_counter())
             ),

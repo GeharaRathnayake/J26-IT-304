@@ -7,7 +7,12 @@ services:
       # Localhost only. Host port defaults to 8001 (fixed by the frontend default); set API_PORT if Windows has reserved it
       # (see `netsh int ipv4 show excludedportrange protocol=tcp`).
       - "127.0.0.1:${API_PORT:-8001}:8001"
-    # MODEL_VERSION and MODELS_DIR are supported but unset: the defaults apply.
+    # MODEL_VERSION and MODELS_DIR are supported but unset: the defaults apply. LLM_PROVIDER defaults to
+    # ollama; the container reaches the HOST's Ollama through host.docker.internal.
+    environment:
+      OLLAMA_URL: "http://host.docker.internal:11434"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     develop:
       watch:
         - action: sync+restart
@@ -19,3 +24,9 @@ services:
       context: .
       target: test
     command: ["python", "-m", "pytest"]
+    # Tests never reach a real Ollama: tests/conftest.py forces the template provider and a closed
+    # port, and the container has no network at all.
+    network_mode: "none"
+    environment:
+      LLM_PROVIDER: "template"
+      OLLAMA_URL: "http://127.0.0.1:9"

@@ -1,15 +1,17 @@
-"""LLM adapter protocol, a mock for tests, and the validated template fallback.
+"""LLM adapter protocol, the Ollama adapter, a mock for tests, and the validated template fallback.
 
-No Ollama adapter yet (a later stage, after the model benchmark). The template replies are a
-fallback, not the research contribution.
+The template replies are a fallback, not the research contribution. Under the default `ollama`
+provider every reply that would not ship (see `postprocess.would_ship`) is replaced by a template.
 """
 
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol, get_args
+from typing import Any, Protocol, get_args
 
+import httpx
 import yaml
 
 from app.generation.postprocess import CHECK
@@ -23,34 +25,102 @@ _JAVA_BLOCK = re.compile(r"^```java[^\n]*\n.*?^```[ \t]*$", re.DOTALL | re.MULTI
 _FENCE_LINE = re.compile(r"^\s*```", re.MULTILINE)
 
 
+@dataclass(frozen=True)
+class Completion:
+    """One generation: the raw text and whether the model stopped at the token cap."""
+
+    text: str
+    truncated: bool
+
+
 class LLMAdapter(Protocol):
-    async def complete(self, prompt: str, timeout_s: float) -> str: ...
+    async def complete(self, prompt: str, timeout_s: float) -> Completion: ...
 
 
 class MockAdapter:
     """Deterministic, no network, no model. Output obeys the format (ends with a Check line).
-    `raw` makes it return that exact string instead, so tests can feed it malformed output."""
+    `raw` makes it return that exact string instead, and `truncated` sets the cap flag, so tests can
+    feed it malformed or cut-off output."""
 
-    def __init__(self, raw: str | None = None) -> None:
+    def __init__(self, raw: str | None = None, truncated: bool = False) -> None:
         self.raw = raw
+        self.truncated = truncated
         self.prompts: list[str] = []
 
-    async def complete(self, prompt: str, timeout_s: float) -> str:
+    async def complete(self, prompt: str, timeout_s: float) -> Completion:
         self.prompts.append(prompt)
         if self.raw is not None:
-            return self.raw
+            return Completion(self.raw, self.truncated)
         if re.search(r"^Strategy: example\b", prompt, re.MULTILINE):
-            return (
+            return Completion(
                 "Here is a mock example for testing:\n\n"
                 "```java\nint x = 1;\n```\n\n"
                 "It declares one variable.\n\n"
-                f"{CHECK} What value does x hold?"
+                f"{CHECK} What value does x hold?",
+                self.truncated,
             )
-        return (
+        return Completion(
             "This is a mock explanation used for testing, with no model involved. "
             "It always follows the output format.\n\n"
-            f"{CHECK} Can you say that back in your own words?"
+            f"{CHECK} Can you say that back in your own words?",
+            self.truncated,
         )
+
+
+class OllamaError(RuntimeError):
+    """Ollama answered, but not with a usable /api/chat body (non-2xx or malformed)."""
+
+
+# Must match the benchmark's call (scripts/benchmark_llm.py `call_parameters`) except `stream`:
+# the benchmark streams to time the first token; the service waits for the whole reply.
+KEEP_ALIVE = "30m"  # the model stays loaded through a demo
+
+
+class OllamaAdapter:
+    """POST {base_url}/api/chat, non-streaming. The httpx.AsyncClient is owned by the caller (created
+    once in the lifespan, closed on shutdown), so tests can build one on httpx.MockTransport.
+    Any failure RAISES; the orchestrator turns an exception into the template fallback."""
+
+    def __init__(self, client: httpx.AsyncClient, base_url: str, model: str, max_tokens: int) -> None:
+        self.client = client
+        self.base_url = base_url.rstrip("/")
+        self.model = model
+        self.max_tokens = max_tokens
+
+    def request_body(self, prompt: str) -> dict[str, Any]:
+        return {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "think": False,
+            "stream": False,
+            "keep_alive": KEEP_ALIVE,
+            "options": {"num_predict": self.max_tokens},
+        }
+
+    async def complete(self, prompt: str, timeout_s: float) -> Completion:
+        resp = await self.client.post(f"{self.base_url}/api/chat", json=self.request_body(prompt), timeout=timeout_s)
+        if not resp.is_success:
+            raise OllamaError(f"/api/chat answered HTTP {resp.status_code}")
+        try:
+            body = resp.json()
+            text = body["message"]["content"]
+            done_reason = body.get("done_reason")
+        except (ValueError, KeyError, TypeError) as exc:
+            raise OllamaError(f"malformed /api/chat body ({type(exc).__name__})") from exc
+        if not isinstance(text, str):
+            raise OllamaError("malformed /api/chat body (content is not a string)")
+        return Completion(text=text, truncated=done_reason == "length")
+
+    async def reachable(self, timeout_s: float = 1.0) -> bool:
+        """GET /api/tags: True only if Ollama answers AND the model is pulled. Never raises."""
+        try:
+            resp = await self.client.get(f"{self.base_url}/api/tags", timeout=timeout_s)
+            if not resp.is_success:
+                return False
+            names = {m.get("name") for m in resp.json().get("models", []) if isinstance(m, dict)}
+        except Exception:
+            return False
+        return self.model in names
 
 
 class TemplateError(ValueError):

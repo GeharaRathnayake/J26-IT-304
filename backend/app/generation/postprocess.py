@@ -6,8 +6,8 @@ final non-empty line (the frontend splits the check question out on that marker)
 
 The prompt ASKS (no headings, at most 60 words, a final Check line); this module GUARANTEES. Small
 models ignore instructions (llama3.2:3b opens with a heading and is cut off mid-sentence), and a
-broken reply must never reach the student: `usable` says whether a reply would ship, and the caller
-serves the template instead when it would not.
+broken reply must never reach the student: `would_ship` (usable AND no untagged reasoning) says
+whether a reply would ship, and the caller serves the template instead when it would not.
 
 Known limits (not handled, by design): a plain "Check:" without the bold markers is not recognised
 (a second, bold check line is appended); a lone `</think>` with no opener cannot tell us what was
@@ -185,3 +185,33 @@ def usable(text: str, strategy: str, truncated: bool = False) -> bool:
     if strategy == "example" and not _JAVA_BLOCK.search(final):
         return False
     return True
+
+
+# --- untagged reasoning, and the one definition of "would it ship?" (S8) ---------------------------
+
+# THE UNTAGGED REASONING LEAK is a deliberately simple HEURISTIC, reported as one: a line of the
+# output starts with a phrase that small "thinking" models use when they narrate their plan instead
+# of answering ("We are explaining...", "Let me write in 2-4 sentences:"). Known limits:
+#  - false negatives: reasoning that does not start a line with one of these phrases;
+#  - false positives: a legitimate reply that happens to start a line with one ("We are going to
+#    look at an example."), which then falls back to the template: safe, just less helpful.
+# One place. Matched case-insensitively at the START of a line (after leading whitespace), as a
+# whole phrase. Add phrases here, nowhere else.
+LEAK_PHRASES = ("We are", "We need to", "Let me", "Okay, so", "First, I", "The user")
+
+_LEAK_RE = re.compile(
+    r"^[ \t]*(?:" + "|".join(re.escape(p) for p in LEAK_PHRASES) + r")\b", re.IGNORECASE | re.MULTILINE
+)
+
+
+def reasoning_leak(text: str) -> bool:
+    """HEURISTIC (see LEAK_PHRASES)."""
+    return _LEAK_RE.search(text) is not None
+
+
+def would_ship(raw: str, strategy: str, truncated: bool) -> bool:
+    """The decisive question, used by BOTH the service and the benchmark: would this reply be served
+    to a student? It must be `usable` after the deterministic post-processing AND must not be an
+    untagged reasoning leak (lead ruling: a leak disqualifies, and `usable` alone is a format check
+    that a leaked sentence would pass)."""
+    return usable(raw, strategy, truncated) and not reasoning_leak(finalise(raw, strategy, truncated))

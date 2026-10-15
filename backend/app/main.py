@@ -6,12 +6,15 @@ validated confusion detector.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 
+import httpx
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 
@@ -19,7 +22,7 @@ from app.classifier.model import ModelLoadError, load_model
 from app.config import Settings
 from app.escalation.engine import EngineConfig, default_episode_id
 from app.escalation.episode_log import utc_now
-from app.generation.adapters import LLMAdapter, MockAdapter, TemplateFallback
+from app.generation.adapters import LLMAdapter, MockAdapter, OllamaAdapter, TemplateFallback
 from app.orchestrator import Deps, TurnError, TurnLogger, handle_turn
 from app.schemas import TutorRequest, TutorResponse
 from app.topics import public_topics
@@ -49,16 +52,42 @@ class HealthResponse(BaseModel):
     model_version: str | None
 
 
+# The warm-up loads the model into Ollama's memory so the first student question does not pay the cold
+# start (measured ~12-18 s cold against ~7-9 s warm). Generous: it runs in the background.
+WARMUP_PROMPT = "Reply with the single word: ready."
+WARMUP_TIMEOUT_S = 90.0
+HEALTH_CHECK_TIMEOUT_S = 1.0
+
+
+async def _warm_up(adapter: LLMAdapter, model: str) -> None:
+    """One throwaway generation. A failure is a WARNING, never a failed startup."""
+    started = time.perf_counter()
+    try:
+        await asyncio.wait_for(adapter.complete(WARMUP_PROMPT, WARMUP_TIMEOUT_S), WARMUP_TIMEOUT_S)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        logger.warning(
+            "LLM warm-up failed (%s) after %.1f s; continuing: replies fall back to templates until %s answers",
+            type(exc).__name__, time.perf_counter() - started, model,
+        )
+        return
+    logger.info("LLM warm-up done: %s loaded in %.1f s", model, time.perf_counter() - started)
+
+
 def create_app(
     models_dir: Path | None = None,
     *,
     settings: Settings | None = None,
     adapter: LLMAdapter | None = None,
+    ollama_transport: httpx.AsyncBaseTransport | None = None,
     now: Callable[[], datetime] = utc_now,
     new_episode_id: Callable[[], str] = default_episode_id,
 ) -> FastAPI:
-    """`adapter`, `now` and `new_episode_id` are injection points for tests; `adapter` is used only
-    when LLM_PROVIDER is "mock"."""
+    """`adapter`, `ollama_transport`, `now` and `new_episode_id` are injection points for tests.
+    `adapter` replaces the provider's adapter ("mock" or "ollama"); `ollama_transport` (an
+    httpx.MockTransport) is what the real OllamaAdapter talks through under "ollama", for generation,
+    the /health check and the warm-up alike."""
     settings = settings if settings is not None else Settings()
     root = Path(models_dir) if models_dir is not None else settings.MODELS_DIR
 
@@ -77,7 +106,30 @@ def create_app(
         # caught and startup fails loudly.
         templates = TemplateFallback()
         provider = settings.LLM_PROVIDER
-        app.state.adapter = (adapter or MockAdapter()) if provider == "mock" else None
+        client: httpx.AsyncClient | None = None
+        warm_up: asyncio.Task | None = None
+        llm_label = provider
+        if provider == "mock":
+            app.state.adapter = adapter or MockAdapter()
+        elif provider == "ollama":
+            llm_label = f"ollama:{settings.LLM_MODEL}"
+            # One client for the process lifetime: generation, /health and the warm-up share it.
+            client = httpx.AsyncClient(transport=ollama_transport)
+            app.state.adapter = adapter or OllamaAdapter(
+                client, settings.OLLAMA_URL, settings.LLM_MODEL, settings.LLM_MAX_TOKENS
+            )
+            logger.info(
+                "LLM provider: ollama, model %s at %s (num_predict %d, timeout %.1f s); template fallback on",
+                settings.LLM_MODEL, settings.OLLAMA_URL, settings.LLM_MAX_TOKENS, settings.LLM_TIMEOUT_S,
+            )
+            # In the background: startup is never blocked, and a failure never fails it. Only the real
+            # adapter is warmed (an injected test adapter would record the warm-up prompt as a turn).
+            if isinstance(app.state.adapter, OllamaAdapter):
+                warm_up = asyncio.create_task(_warm_up(app.state.adapter, settings.LLM_MODEL))
+        else:
+            app.state.adapter = None
+        app.state.provider = provider
+        app.state.warm_up = warm_up
         turn_logger = TurnLogger(settings.TURN_LOG_PATH) if settings.TURN_LOG_PATH is not None else None
         app.state.deps = (
             None
@@ -89,26 +141,44 @@ def create_app(
                 provider=provider,
                 adapter=app.state.adapter,
                 llm_timeout_s=settings.LLM_TIMEOUT_S,
+                llm_label=llm_label,
                 weak_threshold=settings.WEAK_THRESHOLD,
                 now=now,
                 new_episode_id=new_episode_id,
                 turn_logger=turn_logger,
             )
         )
-        yield
+        try:
+            yield
+        finally:
+            if warm_up is not None and not warm_up.done():
+                warm_up.cancel()
+                try:
+                    await warm_up
+                except asyncio.CancelledError:
+                    pass
+            if client is not None:
+                await client.aclose()
 
     app = FastAPI(title="Adaptive AI Voice Tutor: tutor service", lifespan=lifespan)
 
     @app.get("/health", response_model=HealthResponse)
-    def health(request: Request) -> HealthResponse:
+    async def health(request: Request) -> HealthResponse:
         model = getattr(request.app.state, "model", None)
         model_loaded = model is not None
+        # A real, cheap check on every call (GET /api/tags, ~1 s): true only if Ollama answers AND the
+        # model is pulled. Always false under the template or mock provider. The frontend shows its
+        # "running with template responses" banner from this flag. It does not affect `status`: the
+        # service still answers (with templates) when the LLM is down.
+        llm_reachable = False
+        adapter = getattr(request.app.state, "adapter", None)
+        if getattr(request.app.state, "provider", None) == "ollama" and isinstance(adapter, OllamaAdapter):
+            llm_reachable = await adapter.reachable(HEALTH_CHECK_TIMEOUT_S)
         return HealthResponse(
             # 'degraded' = verification failed at startup (see lifespan).
             status="ok" if model_loaded else "degraded",
             model_loaded=model_loaded,
-            # Hard-coded until the Ollama stage adds a real reachability probe.
-            llm_reachable=False,
+            llm_reachable=llm_reachable,
             model_version=model.version if model_loaded else None,
         )
 

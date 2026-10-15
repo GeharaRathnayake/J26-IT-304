@@ -463,11 +463,6 @@ def test_the_summary_is_written_by_the_run(tmp_path):
     assert "qwen3:4b" in text and "cold start" in text and "human rating (mean)" in text
 
 
-def test_the_service_code_is_untouched_by_this_stage():
-    # the benchmark imports from app/ but adds nothing to it
-    assert not (Path(__file__).resolve().parents[1] / "app" / "ollama.py").exists()
-    assert not list((Path(__file__).resolve().parents[1] / "app").rglob("*ollama*"))
-
 # --- the 12 s reference (the service's fallback timeout; not a pass mark) ----------------------------------------------------
 
 
@@ -513,12 +508,29 @@ def test_score_raw_marks_a_heading():
 
 
 def test_would_ship_uses_the_truncation_flag_and_rejects_a_leak():
-    assert sc.would_ship(LLAMA_STYLE, "theory", "length") is True  # heading stripped, trimmed to a full sentence
-    assert sc.would_ship("A loop is a way to repeat", "theory", "length") is False  # no complete sentence
+    assert sc.would_ship(LLAMA_STYLE, "theory", True) is True  # heading stripped, trimmed to a full sentence
+    assert sc.would_ship("A loop is a way to repeat", "theory", True) is False  # no complete sentence
     leak = "We are given the topic: Inheritance. We are to provide: theory. We must follow the instructions exactly."
-    assert sc.would_ship(leak, "theory", "length") is False  # format-wise it has sentences, but a leak never ships
-    assert sc.would_ship("Look:\n\n```java\nint x = 1;\nint y", "example", "length") is False  # unclosed code dropped
-    assert sc.would_ship(GOOD_EXAMPLE, "example", "stop") is True
+    assert sc.would_ship(leak, "theory", True) is False  # format-wise it has sentences, but a leak never ships
+    assert sc.would_ship("Look:\n\n```java\nint x = 1;\nint y", "example", True) is False  # unclosed code dropped
+    assert sc.would_ship(GOOD_EXAMPLE, "example", False) is True
+
+
+def test_the_benchmark_and_the_service_judge_by_the_same_functions():
+    # S8: one definition of "would it ship?". The scoring module imports it and keeps no copy.
+    from app.generation import postprocess
+
+    assert sc.would_ship is postprocess.would_ship
+    assert sc.reasoning_leak is postprocess.reasoning_leak
+    assert sc.LEAK_PHRASES is postprocess.LEAK_PHRASES
+
+
+def test_score_generation_derives_truncation_from_done_reason():
+    # LLAMA_STYLE ends mid-sentence: shippable only when trimmed (done_reason "length").
+    final = finalise(LLAMA_STYLE, "theory", truncated=True)
+    assert sc.score_generation(LLAMA_STYLE, final, "theory", "length")["score_final"]["usable"] is True
+    cut_example = "Look:\n\n```java\nint x = 1;\nint y"
+    assert sc.score_generation(cut_example, finalise(cut_example, "example", True), "example", "length")["score_final"]["usable"] is False
 
 
 def test_score_generation_records_the_shipped_flags():

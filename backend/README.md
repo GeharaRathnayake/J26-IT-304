@@ -79,6 +79,8 @@ docker compose down
   `unhealthy` in `docker ps`.
 - The `runtime` target holds `app/` and `models/` only; the `test` target adds dev
   dependencies and `tests/`.
+- The `api` container reaches the host's Ollama at `http://host.docker.internal:11434`
+  (`extra_hosts: host-gateway` in `compose.yaml`).
 - If the host port is unavailable, `API_PORT` overrides it for Docker only
   (`$env:API_PORT='8200'; docker compose up -d api`); the frontend still expects 8001.
 - `models/` must stay byte-exact (`.gitattributes` keeps Git from rewriting line endings).
@@ -92,11 +94,26 @@ detector), decides the next move with the escalation engine, and returns a full 
 
 | Setting (env var) | Default | Meaning |
 |---|---|---|
-| `LLM_PROVIDER` | `template` | `template` serves the bundled template replies (`meta.fallback: true` on every turn). `mock` uses a test adapter. `ollama` arrives in a later stage; any other value fails at startup. |
-| `LLM_TIMEOUT_S` | `8.0` | Cutoff for a generation call. Never derive it from the 3 s latency target. |
+| `LLM_PROVIDER` | `ollama` | `ollama` generates explanations with a local model; `template` serves the bundled template replies (`meta.fallback: true` on every turn); `mock` uses a test adapter. Any other value fails at startup. |
+| `LLM_MODEL` | `llama3.2:3b` | Decision D2 (see below). |
+| `OLLAMA_URL` | `http://127.0.0.1:11434` | `127.0.0.1`, not `localhost` (an IPv6 lookup delay on Windows). Docker sets `http://host.docker.internal:11434`. |
+| `LLM_MAX_TOKENS` | `110` | `num_predict`. Measured 88% usable at 110 against 81% at 80. |
+| `LLM_TIMEOUT_S` | `14.0` | Cutoff for a generation call: measured p95 11.0 s at 110 tokens × 1.2. Never derive it from the 3 s latency target. |
 | `TURN_LOG_PATH` | unset | Opt-in per-turn research log (see below). |
 | `WEAK_THRESHOLD` | `3` | `is_weak` when counted strategies reach this or the episode ends unresolved. |
 | `MAX_CYCLES` | `2` | Explanation cycles per episode. |
+
+**The LLM and its safety net (D2).** Benchmark: `benchmarks/llm/SUMMARY.md`. `qwen3:4b` was
+disqualified (untagged reasoning in 100% of replies). `llama3.2:3b` showed no reasoning leak and a
+wall p95 of 11.0 s, but its replies were usable in **88%** of cases against a **90%** bar; theory,
+simplified and analogy were 12/12, while examples often truncate their code block. It is the
+default **with** the template as the deterministic safety net: every reply is post-processed, and
+one that would not ship (`app/generation/postprocess.py::would_ship`: not usable, or untagged
+reasoning), a timeout or any error is replaced by the template with `meta.fallback: true` and one
+WARNING naming the reason (`not_usable`, `reasoning_leak`, `timeout` or the error type; never the
+student's text or the model's output). `meta.llm` is `ollama:llama3.2:3b` on every turn, including
+fallback turns. At startup a background warm-up loads the model (`keep_alive: 30m`); it never
+blocks or fails startup. With Ollama stopped the service still answers every turn, with templates.
 
 **Per-turn research log (off by default).** When `TURN_LOG_PATH` is set, one JSON line per turn is
 appended (message, the preceding tutor turn, label/probability/source, whether the model and the
@@ -109,10 +126,17 @@ before it is switched on.** A failed write is logged at ERROR and never fails th
 .\.venv\Scripts\python -m app                              # one shell
 .\.venv\Scripts\python scripts\smoke_episode.py            # another shell
 ```
+
+It prints `meta.llm`, `meta.fallback` and the latencies per turn, and how many explain turns were
+generated and how many fell back. `--expect-fallback true` requires every explain turn to fall back
+(for a run with Ollama unreachable).
 ## Behaviour
 
-Expected: `{"status":"ok","model_loaded":true,"llm_reachable":false,"model_version":"clf-v1.0.0"}`.
-`llm_reachable` is hard-coded `false` until the Ollama stage.
+Expected: `{"status":"ok","model_loaded":true,"llm_reachable":true,"model_version":"clf-v1.0.0"}`.
+`llm_reachable` is a real check on every call (`GET {OLLAMA_URL}/api/tags`, 1 s timeout): true only
+if Ollama answers **and** `LLM_MODEL` is pulled; always false under the `template` or `mock`
+provider. It does not change `status`: without the LLM the service still answers, with templates
+(the frontend shows its "running with template responses" banner from this flag).
 
 Startup logs one `hash OK` line per verified file, the class order, both class-order
 assertion scores and the load time. If **any** verification fails, the failure is logged at
@@ -130,7 +154,10 @@ Settings (env vars): `HOST`, `PORT`, `MODEL_VERSION` (default `clf-v1.0.0`), `MO
 python -m pytest
 ```
 
-No network or Ollama needed. The tests include negative controls, each of which must
+No network or Ollama needed, and **none is ever contacted, even when Ollama is running**:
+`tests/conftest.py` forces `LLM_PROVIDER=template` and `OLLAMA_URL=http://127.0.0.1:9` for every
+test, and the ollama tests talk to `httpx.MockTransport`. The Docker `test` service also has no
+network. The tests include negative controls, each of which must
 produce the degraded `/health` and an ERROR log: a corrupted `pipeline.joblib`, a modified or
 CRLF `rules.yaml`, a wrong scikit-learn version, and
 deliberately inverted/constant predictors that the class-order assertion must reject.
