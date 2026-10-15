@@ -20,3 +20,5 @@ README.md
 benchmarks/llm/*.json
 benchmarks/llm/*_outputs.md
 benchmarks/llm/SUMMARY.md
+# tests/test_blind_sheet.py builds the blind sheet from this one committed result file
+!benchmarks/llm/llama3.2_3b_2026-10-15_np110_r2.json

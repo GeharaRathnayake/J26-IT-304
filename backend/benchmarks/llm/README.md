@@ -90,3 +90,39 @@ cycle-1 counterpart; nothing here measured that.
 - For r1 rows, usable / headings / example columns are recomputed from the stored raw text with today's
   post-processing, so they show what post-processing alone would have achieved.
 - Timings are wall clock on the benchmark machine, with whatever else it was running.
+
+## Blind rating (criterion 5)
+
+Pre-registered D2 criterion 5: "blind quality rating ≥ 3/5, and not below templates", rated by a
+human. Built by `scripts/blind_sheet.py build` (`python scripts/blind_sheet.py build --force` to
+rebuild; it refuses to overwrite an existing sheet or key without `--force`, so a sheet that already
+has ratings in it is never silently wiped):
+
+- **Source**: `llama3.2_3b_2026-10-15_np110_r2.json`, run 1 only, the three topics `inheritance`,
+  `loops`, `exception_handling`, all four strategies — 12 generations, paired with the matching 12
+  cycle-1 templates, 24 items in total. The reply that fails `would_ship` is included as it is: the
+  rating judges what the model actually produced, not what the fallback hides.
+- **Seed**: `20261015`, pre-registered in `scripts/blind_sheet.py` (`SEED`). The 24 items are
+  shuffled with this seed and labelled `R01`-`R24` so neither the order nor the label gives away
+  which side an item came from.
+- **Files**: `blind_rating_2026-10-15.md` (the sheet a human rates) and `blind_key_2026-10-15.json`
+  (which `R..` id is which side). **Do not open the key before rating** — the sheet says so too.
+
+**To rate it:** open `blind_rating_2026-10-15.md`, read each item, and fill in its
+`Rating (1-5): ` line (1 = poor, 5 = excellent) — nothing else on the sheet changes. Do this for all
+24 items before opening the key.
+
+**To score it:** `python scripts/blind_sheet.py score benchmarks/llm/blind_rating_2026-10-15.md
+benchmarks/llm/blind_key_2026-10-15.json`. It prints `n_llm`, `n_template`, `mean_llm`,
+`mean_template`, `llm_ge_3`, `llm_ge_template` and `criterion_5` (`PASS`/`FAIL`), and exits 1 on any
+unrated, out-of-range or mis-keyed item rather than scoring a partial sheet.
+
+**This is non-blocking evidence.** The owner has already chosen to ship llama3.2:3b with the
+template fallback (decision D2); this sheet does not decide anything on its own, and the lead reads
+the result alongside the other four (already-measured) D2 criteria.
+
+**The limits of the blinding.** Length and style differences between a model reply and a template
+are deliberately kept (they are part of what is being rated), and that alone can give the side
+away — the templates tend to be shorter and more uniform. A rater who has already read the
+templates (while writing or reviewing `fallbacks.yaml`) may recognise them outright. The blinding
+hides the LABEL, not every statistical tell.

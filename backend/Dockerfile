@@ -37,8 +37,11 @@ COPY requirements-dev.txt ./
 RUN pip install --no-cache-dir -r requirements-dev.txt
 COPY --chown=tutor:tutor tests ./tests
 COPY --chown=tutor:tutor scripts ./scripts
-# only the README (a test checks it records the one-revision rule); result files stay out of the image
+# only the README (a test checks it records the one-revision rule), plus the one result file the
+# blind rating sheet is built from (tests/test_blind_sheet.py); the rest of benchmarks/llm/ stays
+# out of the image
 COPY --chown=tutor:tutor benchmarks/llm/README.md ./benchmarks/llm/README.md
+COPY --chown=tutor:tutor benchmarks/llm/llama3.2_3b_2026-10-15_np110_r2.json ./benchmarks/llm/llama3.2_3b_2026-10-15_np110_r2.json
 # Tests build their own temp copies; the image's models/ is never modified.
 RUN chown tutor:tutor /srv/backend
 USER tutor
