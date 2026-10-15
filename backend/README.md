@@ -2,9 +2,10 @@
 
 FastAPI service for J26-IT-304, *Adaptive AI Voice Tutor for Java Programming*.
 
-**Stage S1 scope:** at startup, load the confusion classifier `clf-v1.0.0`, prove it is
-the right file and the right way round, and report that on `GET /health`. No tutoring
-endpoint, rules or LLM yet.
+**What it does:** at startup it loads the confusion classifier `clf-v1.0.0` and proves it is
+the right file and the right way round. It then serves `GET /health`, `GET /topics`,
+`GET /model-info` and `POST /tutor/message`. Explanations come from `llama3.2:3b` on Ollama, with a
+template fallback for any reply that would not ship.
 
 > **Honesty caveat.** The classifier is a *prototype component*: a TF-IDF +
 > LogisticRegression pipeline trained on a **synthetic** dataset, where "answer not fully
@@ -102,6 +103,7 @@ detector), decides the next move with the escalation engine, and returns a full 
 | `TURN_LOG_PATH` | unset | Opt-in per-turn research log (see below). |
 | `WEAK_THRESHOLD` | `3` | `is_weak` when counted strategies reach this or the episode ends unresolved. |
 | `MAX_CYCLES` | `2` | Explanation cycles per episode. |
+| `CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Browser origins allowed to call the service (decision D5: the frontend calls it cross-origin). Comma-separated, no JSON quoting. **Exact origins only: no `*`, no trailing slash, no path, scheme required** (a trailing slash never matches the browser's `Origin`); any of these fails at startup with a message naming `CORS_ORIGINS`. Only a **browser** enforces CORS: curl and the tests pass whether or not it is right, so use the browser check below. |
 
 **The LLM and its safety net (D2).** Benchmark: `benchmarks/llm/SUMMARY.md`. `qwen3:4b` was
 disqualified (untagged reasoning in 100% of replies). `llama3.2:3b` showed no reasoning leak and a
@@ -139,6 +141,39 @@ before it is switched on.** A failed write is logged at ERROR and never fails th
 It prints `meta.llm`, `meta.fallback` and the latencies per turn, and how many explain turns were
 generated and how many fell back. `--expect-fallback true` requires every explain turn to fall back
 (for a run with Ollama unreachable).
+## Endpoints
+
+| Method and path | Purpose |
+|---|---|
+| `GET /health` | Model verification status and Ollama reachability (see Behaviour). |
+| `GET /topics` | The topic list the frontend shows. |
+| `GET /model-info` | The classifier's `model_info` block from `metadata.json`, **served unchanged**: `version`, `trained_at`, `dataset`, `threshold`, `metrics`. It is parsed and validated once at startup (a malformed block starts the service degraded) and never re-read from disk. `503` when the model is not loaded. The metrics are those of a prototype proxy trained on synthetic answers. |
+| `POST /tutor/message` | One tutoring turn (above). |
+
+## Browser check (CORS)
+
+The tests and curl cannot prove CORS; only a browser can. This is the procedure:
+
+1. Make sure nothing else holds port 5173 (a second Vite silently moves to 5174, and that origin is
+   not allowed; see below), and start the service: `.\.venv\Scripts\python -m app`.
+2. In `dev/frontend`, in PowerShell (the variable is set for this shell only; no file is written):
+   `$env:VITE_TUTOR_MODE='direct'; npm run dev`
+3. Open `http://localhost:5173` with DevTools open (Network and Console tabs). Confirm:
+   - `/topics` and `/health` show status **200** in the Network tab on page load;
+   - one typed turn shows an `OPTIONS` preflight followed by a `POST` to `/tutor/message` with
+     status **200**;
+   - the Console has **no CORS error**;
+   - `/model-info`: the UI does not call it in this build, so check it from the page. In the
+     Console run `await fetch('http://localhost:8001/model-info').then(r => r.status)` and expect
+     `200`.
+4. Repeat once from the `http://127.0.0.1:5173` origin. Stop the first Vite, then run (same shell
+   variable `VITE_TUTOR_MODE`): `npx vite --host 127.0.0.1 --port 5173 --strictPort`. Plain
+   `npm run dev` listens on `[::1]:5173` only on this machine, so `http://127.0.0.1:5173` gets
+   `ERR_CONNECTION_REFUSED`.
+
+**If Vite moved to 5174** (its console says `Port 5173 is in use, trying another one`), every
+request fails with a CORS error. The fix is to **free 5173**, not to widen `CORS_ORIGINS`.
+
 ## Behaviour
 
 Expected: `{"status":"ok","model_loaded":true,"llm_reachable":true,"model_version":"clf-v1.0.0"}`.

@@ -1,4 +1,4 @@
-"""Tutor service entry point: verified model load, /health, /topics and POST /tutor/message.
+"""Tutor service entry point: verified model load, /health, /topics, /model-info and POST /tutor/message.
 
 The classifier is a prototype proxy trained on synthetic answers, not a
 validated confusion detector.
@@ -16,7 +16,8 @@ from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel, ConfigDict
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from app.classifier.model import ModelLoadError, load_model
 from app.config import Settings
@@ -50,6 +51,29 @@ class HealthResponse(BaseModel):
     model_loaded: bool
     llm_reachable: bool
     model_version: str | None
+
+
+class ModelInfo(BaseModel):
+    """Mirrors ModelInfo in frontend/src/features/tutor/api/types.ts. Used only to VALIDATE the block
+    once at startup; the endpoint serves the parsed dict itself, so number formatting is untouched."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    version: str
+    trained_at: str
+    dataset: str
+    threshold: float
+    metrics: dict[str, float]
+
+
+def _validate_model_info(metadata: dict) -> None:
+    """A malformed model_info is an artifact defect: raise ModelLoadError so the start is degraded."""
+    try:
+        ModelInfo.model_validate(metadata["model_info"])
+    except KeyError as exc:
+        raise ModelLoadError("metadata.json has no model_info block") from exc
+    except ValidationError as exc:
+        raise ModelLoadError(f"metadata.json model_info is malformed: {exc}") from exc
 
 
 # The warm-up loads the model into Ollama's memory so the first student question does not pay the cold
@@ -98,7 +122,9 @@ def create_app(
         # report it and later stages can answer 503. A model that failed any
         # check is never stored. Any other exception still propagates.
         try:
-            app.state.model = load_model(root / settings.MODEL_VERSION)
+            loaded = load_model(root / settings.MODEL_VERSION)
+            _validate_model_info(loaded.metadata)
+            app.state.model = loaded
         except ModelLoadError as exc:
             logger.error("model NOT loaded, starting degraded: %s", exc)
             app.state.model = None
@@ -162,6 +188,18 @@ def create_app(
 
     app = FastAPI(title="Adaptive AI Voice Tutor: tutor service", lifespan=lifespan)
 
+    # Decision D5 (09): the browser calls this service cross-origin (07 section 8). add_middleware puts
+    # CORS outside the routing and exception layers, so 422 and 503 responses carry the header too.
+    # Exact origins, no regex; only the one non-simple header the frontend sends (Content-Type on POST).
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origin_list(),
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type"],
+        allow_credentials=False,
+        max_age=600,
+    )
+
     @app.get("/health", response_model=HealthResponse)
     async def health(request: Request) -> HealthResponse:
         model = getattr(request.app.state, "model", None)
@@ -181,6 +219,17 @@ def create_app(
             llm_reachable=llm_reachable,
             model_version=model.version if model_loaded else None,
         )
+
+    @app.get("/model-info")
+    def model_info(request: Request) -> dict:
+        # The block parsed (and validated) at load, served unchanged. Never re-read from disk.
+        model = getattr(request.app.state, "model", None)
+        if model is None:
+            raise HTTPException(
+                status_code=503,
+                detail="classifier failed verification at startup; model not loaded",
+            )
+        return model.metadata["model_info"]
 
     @app.get("/topics")
     def topics() -> list[dict[str, str]]:

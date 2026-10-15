@@ -36,7 +36,7 @@ _FENCE_LINE = re.compile(r"^\s*```")
 def strip_think(text: str) -> str:
     """Remove every <think>...</think> span (multi-line too), an unclosed trailing <think>... to the
     end of the text, and any stray tag. Model-agnostic: Qwen3 reasons inside these tags and the
-    voice phase would otherwise speak that monologue aloud."""
+    reasoning monologue would otherwise reach the student as part of the reply."""
     text = _THINK_CLOSED.sub("", text)
     text = _THINK_UNCLOSED.sub("", text)
     return _THINK_STRAY.sub("", text)

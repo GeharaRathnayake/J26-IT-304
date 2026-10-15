@@ -1,3 +1,5 @@
+name: j26-tutor
+
 services:
   api:
     build:

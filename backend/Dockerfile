@@ -37,6 +37,8 @@ COPY requirements-dev.txt ./
 RUN pip install --no-cache-dir -r requirements-dev.txt
 COPY --chown=tutor:tutor tests ./tests
 COPY --chown=tutor:tutor scripts ./scripts
+# the compose project name is asserted by tests/test_cors_and_model_info.py; test stage only
+COPY --chown=tutor:tutor compose.yaml ./compose.yaml
 # only the README (a test checks it records the one-revision rule), plus the one result file the
 # blind rating sheet is built from (tests/test_blind_sheet.py); the rest of benchmarks/llm/ stays
 # out of the image

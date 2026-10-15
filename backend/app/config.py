@@ -1,10 +1,14 @@
 """Environment-driven settings."""
 
+import re
 from pathlib import Path
 from typing import Literal
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
+
+# scheme://host[:port] and nothing else: the browser's `Origin` header never has a path or a trailing slash.
+_ORIGIN = re.compile(r"^https?://(?:[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?|\[[0-9A-Fa-f:.]+\])(?::\d{1,5})?$")
 
 # dev/backend/models, resolved from this file so the working directory is irrelevant.
 DEFAULT_MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
@@ -43,6 +47,13 @@ class Settings(BaseSettings):
     # Set from measurement, never from the 3-second latency figure (that is a measurement target).
     LLM_TIMEOUT_S: float = 18.0
 
+    # Browser origins allowed to call this service (CORS). Decision D5 chose the `direct` transport: the
+    # browser at http://localhost:5173 (Vite) calls this service cross-origin, and vite.config.ts has no
+    # dev proxy (07 section 8, 09 D5). Comma-separated so it works as a plain environment variable.
+    # 127.0.0.1:5173 is included because a person may open the frontend by IP, which is a different
+    # origin. Exact origins only: no `*`, no trailing slash, no path (validated below).
+    CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
+
     # Per-turn research log (R4). OFF by default: it records real student messages, which needs
     # ethics approval first. When set, one JSON line is appended per turn.
     TURN_LOG_PATH: Path | None = None
@@ -53,3 +64,23 @@ class Settings(BaseSettings):
         if v not in ("template", "mock", "ollama"):
             raise ValueError(f"LLM_PROVIDER={v!r} is not supported; use 'ollama', 'template' or 'mock'")
         return v
+
+    @field_validator("CORS_ORIGINS")
+    @classmethod
+    def _valid_origins(cls, v: str) -> str:
+        entries = [part.strip() for part in v.split(",") if part.strip()]
+        if not entries:
+            raise ValueError("CORS_ORIGINS is empty; list at least one origin such as http://localhost:5173")
+        for origin in entries:
+            if origin == "*":
+                raise ValueError("CORS_ORIGINS must not contain '*'; list exact origins")
+            if not _ORIGIN.match(origin):
+                raise ValueError(
+                    f"CORS_ORIGINS entry {origin!r} is not scheme://host[:port] "
+                    "(no path, no trailing slash, scheme required)"
+                )
+        return v
+
+    def cors_origin_list(self) -> list[str]:
+        """The parsed CORS_ORIGINS: split on commas, each stripped, empties dropped."""
+        return [part.strip() for part in self.CORS_ORIGINS.split(",") if part.strip()]
