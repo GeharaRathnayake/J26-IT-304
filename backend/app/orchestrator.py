@@ -27,6 +27,7 @@ from pydantic import ValidationError
 
 from app.classifier.hybrid import classify
 from app.classifier.model import LoadedModel
+from app.config import Settings
 from app.escalation.engine import EngineConfig, InvalidStateError, default_episode_id, next_action
 from app.escalation.episode_log import EpisodeLogError, build_episode_log, utc_now
 from app.escalation.request_detector import detect_request
@@ -77,7 +78,8 @@ class Deps:
     templates: TemplateFallback
     provider: str  # "template" | "mock" | "ollama"
     adapter: LLMAdapter | None = None
-    llm_timeout_s: float = 14.0
+    # one number: the setting's declared default (S10; it had drifted from 14.0 to 18.0)
+    llm_timeout_s: float = Settings.model_fields["LLM_TIMEOUT_S"].default
     # meta.llm: "template", "mock" or f"ollama:{LLM_MODEL}" (also on a fallback turn, where
     # meta.fallback says the template was served). Defaults to `provider`.
     llm_label: str | None = None

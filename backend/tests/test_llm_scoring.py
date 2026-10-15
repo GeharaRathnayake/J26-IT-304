@@ -287,8 +287,10 @@ def test_summary_recomputes_from_the_generations_not_from_a_stale_stored_aggrega
 
 
 class FakeOllama:
-    def __init__(self, installed=("qwen3:4b",), resident=False, chat_status=200, reply=None, done_reason="stop"):
+    def __init__(self, installed=("qwen3:4b",), resident=False, chat_status=200, reply=None, done_reason="stop",
+                 ps_size=None, ps_vram=None, ps_calls_log=None):
         self.installed, self.resident, self.chat_status = list(installed), resident, chat_status
+        self.ps_size, self.ps_vram = ps_size, ps_vram  # Ollama's own numbers for the resident entry
         self.reply, self.done_reason = reply, done_reason
         self.chat_payloads, self.calls = [], []
 
@@ -307,13 +309,20 @@ class FakeOllama:
         if path == "/api/tags":
             return httpx.Response(200, json={"models": [{"name": n} for n in self.installed]})
         if path == "/api/ps":
-            return httpx.Response(200, json={"models": [{"name": n} for n in self.installed] if self.resident else []})
+            entries = []
+            for n in self.installed if self.resident else []:
+                entry = {"name": n}
+                if self.ps_size is not None:
+                    entry.update(size=self.ps_size, size_vram=self.ps_vram)
+                entries.append(entry)
+            return httpx.Response(200, json={"models": entries})
         if path == "/api/generate":
             self.resident = False
             return httpx.Response(200, json={"done": True})
         if path == "/api/chat":
             body = json.loads(request.content)
             self.chat_payloads.append(body)
+            self.resident = True  # a generation loads the model
             if self.chat_status != 200:
                 return httpx.Response(self.chat_status, text="boom")
             text = self.reply_for(body["messages"][0]["content"])
@@ -726,3 +735,34 @@ def test_the_benchmarks_readme_records_the_one_revision_rule():
     readme = (Path(__file__).resolve().parents[1] / "benchmarks" / "llm" / "README.md").read_text(encoding="utf-8")
     assert "one prompt revision" in readme and "one re-run" in readme and "stop" in readme
     assert "usable (would ship)" in readme
+
+
+# --- placement (S10) ----------------------------------------------------------------------------------------------------
+
+
+def _placement(tmp_path, fake):
+    assert run_main(tmp_path, fake) == 0
+    path = next((tmp_path / "out").glob("qwen3_4b_*.json"))
+    return json.loads(path.read_text(encoding="utf-8"))["placement"]
+
+
+def test_placement_is_recorded_from_api_ps_after_the_warm_up(tmp_path):
+    fake = FakeOllama(resident=True, ps_size=4_000_000_000, ps_vram=1_000_000_000)
+    placement = _placement(tmp_path, fake)
+    assert placement == {"size": 4_000_000_000, "size_vram": 1_000_000_000, "gpu_fraction": 0.25}
+    names = [c[1] for c in fake.calls]
+    # queried after the warm-up chat call and before the timed runs: ps follows the first chat call
+    first_chat = names.index("/api/chat")
+    assert "/api/ps" in names[first_chat:]
+
+
+def test_placement_fully_on_cpu_is_zero_and_unlisted_is_null(tmp_path):
+    assert _placement(tmp_path, FakeOllama(resident=True, ps_size=4_000_000_000, ps_vram=0))["gpu_fraction"] == 0.0
+    unlisted = _placement(tmp_path / "b", FakeOllama(resident=True))  # entry has no size at all
+    assert unlisted == {"size": None, "size_vram": None, "gpu_fraction": None}
+
+
+def test_the_benchmark_uses_the_services_gpu_fraction_not_a_copy():
+    import app.generation.placement as placement_mod
+
+    assert bench.gpu_fraction is placement_mod.gpu_fraction

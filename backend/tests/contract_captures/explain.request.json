@@ -1,0 +1,38 @@
+{
+  "request_id": "cap-r-1",
+  "confusion": {
+    "label": "confused",
+    "probability": 0.8130368578150199,
+    "source": "model"
+  },
+  "detected_request": "example",
+  "action": "explain",
+  "strategy": "example",
+  "trigger": "request",
+  "response": "Here is a small example:\n\n```java\npublic class Demo {\n    public static void main(String[] args) {\n        for (int i = 1; i <= 3; i++) {\n            System.out.println(\"Round \" + i);\n        }\n    }\n}\n```\n\nThe loop starts with `i` at 1, prints a line, adds 1 to `i`, and stops when `i` becomes 4, so it prints three lines.\n\n**Check:** What would change if the condition were `i <= 5`?",
+  "updated_state": {
+    "episode_id": "ep_2",
+    "cycle": 1,
+    "strategies_used": [
+      {
+        "strategy": "example",
+        "trigger": "request"
+      }
+    ],
+    "awaiting_cycle_confirmation": false,
+    "prior_explanations": [
+      "Here is a small example:\n\n```java\npublic class Demo {\n    public static void main(String[] args) {\n        for (int i = 1; i <= 3; i++) {\n            System.out.println(\"Round \" + i);\n        }\n    }\n}\n```\n\nThe loop starts with `i` at 1, prints a line, adds 1 to `i`, and stops when `i` becomes 4, so it prints three lines.\n\n**Check:** What would change if the condition were `i <= 5`?"
+    ]
+  },
+  "episode_log": null,
+  "meta": {
+    "model_version": "clf-v1.0.0",
+    "llm": "template",
+    "latency_ms": {
+      "classify": 0.0,
+      "llm": 0.0,
+      "total": 0.0
+    },
+    "fallback": true
+  }
+}

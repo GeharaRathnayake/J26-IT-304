@@ -167,7 +167,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     expect = {"auto": AUTO, "true": True, "false": False, "any": None}[args.expect_fallback]
     try:
-        # 30 s: above the service's own LLM timeout (14 s), so a slow model shows up as a fallback, not here.
+        # 30 s: above the service's own LLM_TIMEOUT_S, so a slow model shows up as a fallback, not here.
         with httpx.Client(base_url=args.url, timeout=30.0) as client:
             health = client.get("/health").json()
             print(f"health: {health}")

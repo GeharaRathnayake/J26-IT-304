@@ -48,6 +48,7 @@ for _p in (str(SCRIPTS_DIR), str(BACKEND_DIR)):
 
 import llm_scoring  # noqa: E402
 from app.generation.adapters import TemplateFallback  # noqa: E402
+from app.generation.placement import gpu_fraction  # noqa: E402
 from app.generation.postprocess import finalise  # noqa: E402
 from app.generation.prompts import PROMPT_REVISION, build_prompt  # noqa: E402
 
@@ -195,6 +196,23 @@ def unload(client: httpx.Client, model: str) -> dict:
     return info
 
 
+def placement_of(client: httpx.Client, model: str) -> dict:
+    """Where Ollama says the model sits right now (`GET /api/ps`): `size` and `size_vram` exactly as
+    reported (None if not listed) and `gpu_fraction` from the service's own function."""
+    entry = None
+    body: dict = {}
+    try:
+        body = client.get("/api/ps").json()
+        entry = next((m for m in body.get("models", []) if m.get("name") == model), None)
+    except (httpx.HTTPError, ValueError, AttributeError, TypeError):
+        body = {}
+    return {
+        "size": entry.get("size") if entry else None,
+        "size_vram": entry.get("size_vram") if entry else None,
+        "gpu_fraction": gpu_fraction(body, model),
+    }
+
+
 def rating_sheet(model: str, run_date: str, generations: list[dict]) -> str:
     lines = [
         f"# Rating sheet: {model} ({run_date})",
@@ -252,6 +270,11 @@ def benchmark_model(
     log(f"  warm-up (cold start): {cold['wall_s'] if cold['wall_s'] is None else round(cold['wall_s'], 1)} s"
         f"{'  ERROR ' + warm['error'] if warm.get('error') else ''}")
 
+    # After the warm-up the model is resident; record where, before the timed runs.
+    placement = placement_of(client, model)
+    log(f"  placement: gpu_fraction={placement['gpu_fraction']} size={placement['size']} "
+        f"size_vram={placement['size_vram']}")
+
     generations = []
     for run in range(1, runs + 1):  # run-major, so identical prompts are never back to back
         for idx, item in enumerate(items):
@@ -300,6 +323,7 @@ def benchmark_model(
         "leak_heuristic_note": "heuristic: a line starting with one of leak_phrases; has false positives and negatives",
         "prompt_set": items,
         "cold_start": cold,
+        "placement": placement,
         "generations": generations,
         "aggregates": llm_scoring.aggregate(generations, cold["wall_s"]),
     }

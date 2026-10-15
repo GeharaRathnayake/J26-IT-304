@@ -1,0 +1,39 @@
+{
+  "topics.json": {
+    "parser": "parseTopics"
+  },
+  "health.json": {
+    "parser": "parseHealth"
+  },
+  "model-info.json": {
+    "parser": "parseModelInfo"
+  },
+  "explain.cycle1.json": {
+    "parser": "parseTutorResponse",
+    "request_id": "cap-a-1"
+  },
+  "explain.request.json": {
+    "parser": "parseTutorResponse",
+    "request_id": "cap-r-1"
+  },
+  "clarify.json": {
+    "parser": "parseTutorResponse",
+    "request_id": "cap-a-6"
+  },
+  "offer_new_cycle.json": {
+    "parser": "parseTutorResponse",
+    "request_id": "cap-a-5"
+  },
+  "explain.cycle2.json": {
+    "parser": "parseTutorResponse",
+    "request_id": "cap-a-7"
+  },
+  "resolved.json": {
+    "parser": "parseTutorResponse",
+    "request_id": "cap-a-8"
+  },
+  "end_unresolved.json": {
+    "parser": "parseTutorResponse",
+    "request_id": "cap-e-6"
+  }
+}

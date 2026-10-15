@@ -195,6 +195,8 @@ def create_app(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list(),
         allow_methods=["GET", "POST"],
+        # Redundant: Starlette's SAFELISTED_HEADERS already include Content-Type
+        # (allow_headers = sorted(SAFELISTED_HEADERS | set(allow_headers))). Kept to document intent.
         allow_headers=["Content-Type"],
         allow_credentials=False,
         max_age=600,

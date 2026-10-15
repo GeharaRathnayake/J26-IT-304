@@ -166,10 +166,11 @@ The tests and curl cannot prove CORS; only a browser can. This is the procedure:
    - `/model-info`: the UI does not call it in this build, so check it from the page. In the
      Console run `await fetch('http://localhost:8001/model-info').then(r => r.status)` and expect
      `200`.
-4. Repeat once from the `http://127.0.0.1:5173` origin. Stop the first Vite, then run (same shell
-   variable `VITE_TUTOR_MODE`): `npx vite --host 127.0.0.1 --port 5173 --strictPort`. Plain
-   `npm run dev` listens on `[::1]:5173` only on this machine, so `http://127.0.0.1:5173` gets
-   `ERR_CONNECTION_REFUSED`.
+4. **Optional**: repeat from the `http://127.0.0.1:5173` origin. Stop the first Vite, then run (same
+   `VITE_TUTOR_MODE` shell variable): `npm run dev -- --host 127.0.0.1`. This leg is
+   **environment-dependent**: whether plain `npm run dev` serves `127.0.0.1` depends on how Node
+   resolves `localhost` (here it listens on `[::1]:5173` only, so `127.0.0.1` is refused); another
+   machine may serve both without the flag. The `localhost` leg is the check that matters.
 
 **If Vite moved to 5174** (its console says `Port 5173 is in use, trying another one`), every
 request fails with a CORS error. The fix is to **free 5173**, not to widen `CORS_ORIGINS`.

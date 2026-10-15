@@ -50,6 +50,15 @@ unchanged (prompt revision r2 is still final).
 - **The timing caveat.** The benchmark streams (`stream: true`, no `keep_alive`); the service calls
   `stream: false` with `keep_alive: "30m"`. The text produced should match, but the timing basis does
   not: these figures are indicative for the service's generation time, not exact.
+- **Placement caveat (lead ruling, 2026-10-16).** The **discrete GPU was disabled** on this machine
+  during every committed run, so **every committed timing is a CPU timing** (median 12.8 tok/s, p95
+  11.0 s at 110 tokens), and placement was **not recorded** at the time. With the GPU enabled, a live
+  probe measured about **41 tok/s, about 2.8 s for 110 tokens** (`ollama ps`: `100% GPU`). The
+  **quality** columns (usable, leak, complete Java, Check line) are **unaffected**: placement changes
+  speed, not output, so **D2 stands**. From now on every run records `placement` in its result JSON
+  (`size` and `size_vram` as Ollama reports them, `gpu_fraction` from
+  `app/generation/placement.py::gpu_fraction`, `null` when unknown, never a guess). No run was
+  repeated for this note and `SUMMARY.md` was not regenerated.
 
 ### What this means for C3
 
