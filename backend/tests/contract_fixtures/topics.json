@@ -1,0 +1,16 @@
+[
+  { "id": "variables_and_data_types", "label": "Variables & Data Types" },
+  { "id": "conditional_statements", "label": "Conditional Statements" },
+  { "id": "loops", "label": "Loops" },
+  { "id": "arrays", "label": "Arrays" },
+  { "id": "methods_and_functions", "label": "Methods & Functions" },
+  { "id": "classes_and_objects", "label": "Classes & Objects" },
+  { "id": "inheritance", "label": "Inheritance" },
+  { "id": "polymorphism", "label": "Polymorphism" },
+  { "id": "encapsulation", "label": "Encapsulation" },
+  { "id": "abstraction", "label": "Abstraction" },
+  { "id": "exception_handling", "label": "Exception Handling" },
+  { "id": "collections", "label": "Collections" },
+  { "id": "recursion", "label": "Recursion" },
+  { "id": "file_io", "label": "File I/O" }
+]

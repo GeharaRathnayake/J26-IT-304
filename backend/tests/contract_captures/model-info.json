@@ -1,0 +1,13 @@
+{
+  "version": "clf-v1.0.0",
+  "trained_at": "2026-10-13T15:45:13Z",
+  "dataset": "JavaQuestionSynthFinal@e29cfdd4",
+  "threshold": 0.5,
+  "metrics": {
+    "accuracy": 0.6898148148148148,
+    "precision_confused": 0.7094594594594594,
+    "recall_confused": 0.813953488372093,
+    "f1_confused": 0.7581227436823105,
+    "macro_f1": 0.6629323395830907
+  }
+}
