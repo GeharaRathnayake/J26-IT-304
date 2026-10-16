@@ -22,7 +22,19 @@ export function newEpisode(topic: string | null = null): EpisodeUI { return { ph
 export function episodeReducer(state: EpisodeUI, action: EpisodeAction): EpisodeUI {
   switch (action.type) {
     case 'TOPIC_CHANGED': return newEpisode(action.topic);
-    case 'SEND_STARTED': return { ...state, phase: 'awaiting_tutor', error: null, messages: [...state.messages, { id: action.id, role: 'student', text: action.message, ...(action.voice ? { voice: true } : {}) }] , history: [...state.history, { role: 'student', text: action.message, ts: new Date().toISOString() }] };
+    case 'SEND_STARTED': {
+      // The conversation and the episode are separate: the conversation never ends; an episode does.
+      // From `closed` (the last episode resolved or ended unresolved) a new message starts a NEW
+      // episode inside the same conversation: the bubbles stay, the episode's history and server state
+      // start over (the service would otherwise reopen the finished episode), and the finished
+      // episode's log stays visible until the next terminal response replaces it.
+      const student = { role: 'student' as const, text: action.message, ts: new Date().toISOString() };
+      const bubble: UIMessage = { id: action.id, role: 'student', text: action.message, ...(action.voice ? { voice: true } : {}) };
+      if (state.phase === 'closed') {
+        return { ...state, phase: 'awaiting_tutor', error: null, messages: [...state.messages, bubble], history: [student], serverState: null, lastResponse: null };
+      }
+      return { ...state, phase: 'awaiting_tutor', error: null, messages: [...state.messages, bubble], history: [...state.history, student] };
+    }
     case 'SEND_SUCCEEDED': {
       const res = action.response;
       const tutor: UIMessage = { id: action.tutorId, role: 'tutor', text: res.response, strategy: res.strategy, trigger: res.trigger, cycle: res.updated_state.cycle, fallback: res.meta.fallback };

@@ -5,7 +5,7 @@ import { getMockFault, setMockFault, type MockFault } from './api/mockTransport'
 import type { TopicOption } from './api/types';
 import { FALLBACK_TOPICS } from './config/topics';
 import { episodeReducer, newEpisode } from './reducer';
-import { createGenerationGuard, createSendLatch, GENERAL_TOPIC, probeHealth, resolveTurnTopic, runExclusive, turnInputFor, type HealthStatus } from './episodeRules';
+import { createGenerationGuard, createSendLatch, GENERAL_TOPIC, probeHealth, resolveTurnTopic, runExclusive, turnInputFor, canSend, type HealthStatus } from './episodeRules';
 
 export { GENERAL_TOPIC };
 
@@ -38,7 +38,7 @@ export function useEpisode() {
   const send = useCallback(async (message: string, options?: { voice?: boolean; topic?: string }) => {
     // A topic named in the message wins; otherwise the chosen one; otherwise a
     // general chat. Switching topic starts a fresh episode.
-    if (!message.trim() || state.phase === 'awaiting_tutor' || state.phase === 'closed') return;
+    if (!message.trim() || !canSend(state.phase)) return;
     await runExclusive(sendLatch.current, async () => {
       // Synchronous: the student must see their message before any network work.
       const topic = resolveTurnTopic({ explicit: options?.topic, current: state.topic, message, topics: loadedTopics.current });

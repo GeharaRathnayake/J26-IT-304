@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createGenerationGuard, createSendLatch, GENERAL_TOPIC, probeHealth, resolveTurnTopic, runExclusive, turnInputFor } from './episodeRules';
+import { canSend, createGenerationGuard, createSendLatch, GENERAL_TOPIC, probeHealth, resolveTurnTopic, runExclusive, turnInputFor } from './episodeRules';
 import { FALLBACK_TOPICS } from './config/topics';
 import { episodeReducer, newEpisode } from './reducer';
 import type { TutorState } from './api/types';
@@ -125,5 +125,35 @@ describe('generation guard: superseded responses (point 5)', () => {
     guard.bump();
     expect(guard.isStale(first)).toBe(true);
     expect(guard.isStale(second)).toBe(true);
+  });
+});
+
+describe('after an episode ends (SF1)', () => {
+  function closedEpisode() {
+    return { ...loopsEpisodeWithHistory(), phase: 'closed' as const };
+  }
+
+  it('sends the next message of a closed episode as a NEW episode: null state, empty history, same topic', () => {
+    const episode = closedEpisode();
+    expect(episode.history.length).toBeGreaterThan(0);
+    expect(episode.serverState).not.toBeNull();
+    const input = turnInputFor(episode, 'loops', 'one more question');
+    expect(input.topic).toBe('loops');
+    expect(input.history).toEqual([]);
+    expect(input.state).toBeNull();
+  });
+
+  it('still carries history and state on the same topic while the episode is live', () => {
+    const live = { ...closedEpisode(), phase: 'awaiting_student' as const };
+    const input = turnInputFor(live, 'loops', 'next');
+    expect(input.history).toBe(live.history);
+    expect(input.state).toBe(live.serverState);
+  });
+
+  it('canSend is false only while a reply is in flight', () => {
+    expect(canSend('awaiting_tutor')).toBe(false);
+    for (const phase of ['closed', 'idle', 'awaiting_student', 'awaiting_cycle_decision'] as const) {
+      expect(canSend(phase)).toBe(true);
+    }
   });
 });

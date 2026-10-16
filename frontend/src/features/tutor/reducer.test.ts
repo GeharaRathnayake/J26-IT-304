@@ -86,3 +86,56 @@ describe('a superseded response corrupts the fresh episode (point 5)', () => {
     expect(fresh.phase).toBe('idle');
   });
 });
+
+describe('the conversation continues after an episode ends (SF1)', () => {
+  const resolvedState = { ...state, episode_id: 'ep_1' };
+  const newState = { ...state, episode_id: 'ep_2' };
+
+  function resolvedEpisode() {
+    let ep = newEpisode('inheritance');
+    ep = episodeReducer(ep, { type: 'SEND_STARTED', id: 's1', message: 'one' });
+    ep = episodeReducer(ep, { type: 'SEND_SUCCEEDED', tutorId: 't1', response: response({ updated_state: resolvedState }) });
+    ep = episodeReducer(ep, { type: 'SEND_STARTED', id: 's2', message: 'two' });
+    ep = episodeReducer(ep, { type: 'SEND_SUCCEEDED', tutorId: 't2', response: response({ updated_state: resolvedState }) });
+    ep = episodeReducer(ep, { type: 'SEND_STARTED', id: 's3', message: 'three' });
+    const log = { episode_id: 'ep_1' } as never;
+    ep = episodeReducer(ep, { type: 'SEND_SUCCEEDED', tutorId: 't3', response: response({ action: 'resolved', strategy: null, trigger: null, episode_log: log, updated_state: resolvedState }) });
+    return ep;
+  }
+
+  it('starts a new episode inside the same conversation when a message is sent from closed', () => {
+    const closed = resolvedEpisode();
+    expect(closed.phase).toBe('closed');
+    const next = episodeReducer(closed, { type: 'SEND_STARTED', id: 's4', message: 'four' });
+    expect(next.phase).toBe('awaiting_tutor');
+    expect(next.messages).toHaveLength(closed.messages.length + 1);
+    expect(next.messages.slice(0, closed.messages.length)).toEqual(closed.messages);
+    expect(next.messages.at(-1)).toMatchObject({ id: 's4', role: 'student', text: 'four' });
+    expect(next.history).toEqual([{ role: 'student', text: 'four', ts: expect.any(String) }]);
+    expect(next.serverState).toBeNull();
+    expect(next.lastResponse).toBeNull();
+    expect(next.episodeLog).toBe(closed.episodeLog);
+    expect(next.episodeLog).not.toBeNull();
+    expect(next.topic).toBe('inheritance');
+  });
+
+  it('shows all eight messages across the old and the new episode, and the new episode owns the server state', () => {
+    const closed = resolvedEpisode();
+    expect(closed.messages).toHaveLength(6);
+    let ep = episodeReducer(closed, { type: 'SEND_STARTED', id: 's4', message: 'four' });
+    ep = episodeReducer(ep, { type: 'SEND_SUCCEEDED', tutorId: 't4', response: response({ updated_state: newState }) });
+    expect(ep.messages).toHaveLength(8);
+    expect(ep.messages.map((m) => m.role)).toEqual(['student', 'tutor', 'student', 'tutor', 'student', 'tutor', 'student', 'tutor']);
+    expect(ep.serverState?.episode_id).toBe('ep_2');
+    expect(ep.phase).toBe('awaiting_student');
+    expect(ep.history.filter((h) => h.role === 'student')).toHaveLength(1);
+  });
+
+  it('leaves a send from any other phase appending to the same episode (unchanged)', () => {
+    let ep = episodeReducer(newEpisode('loops'), { type: 'SEND_STARTED', id: 'a', message: 'one' });
+    ep = episodeReducer(ep, { type: 'SEND_SUCCEEDED', tutorId: 't', response: response() });
+    const next = episodeReducer(ep, { type: 'SEND_STARTED', id: 'b', message: 'two' });
+    expect(next.history).toHaveLength(3);
+    expect(next.serverState).toBe(ep.serverState);
+  });
+});

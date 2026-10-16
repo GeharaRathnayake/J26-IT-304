@@ -4,20 +4,25 @@
 import type { TurnInput, TutorTransport } from './api/adapter';
 import type { HealthResponse, TopicOption } from './api/types';
 import { inferTopic } from './inferTopic';
-import type { EpisodeUI } from './reducer';
+import type { EpisodeUI, Phase } from './reducer';
 
 /** What one turn puts on the wire.
  *
  * A turn whose topic differs from the episode's current topic belongs to a NEW
  * episode (TOPIC_CHANGED resets history and server state), so it carries no
- * history and no state. A turn on the same topic carries the accumulated
- * history and the last `updated_state` verbatim (invariant I1).
+ * history and no state. So does a turn sent after the episode ENDED
+ * (`closed`: resolved or end_unresolved): the contract's state has no "ended"
+ * flag, so sending the post-resolution `updated_state` would make the service
+ * reopen the finished episode under the same `episode_id`; the next message
+ * starts a new one instead, with `state: null` and `history: []` (history is
+ * episode-scoped). A turn on the same topic in a live episode carries the
+ * accumulated history and the last `updated_state` verbatim (invariant I1).
  *
  * `state` must be the episode as it was BEFORE any dispatch from this send: the
  * hook's captured value is stale by design, which is exactly why this decision
  * is made here from the topic rather than read off the captured fields. */
 export function turnInputFor(state: EpisodeUI, topic: string, message: string): TurnInput {
-  const sameEpisode = topic === state.topic;
+  const sameEpisode = topic === state.topic && state.phase !== 'closed';
   return {
     topic,
     message,
@@ -25,6 +30,12 @@ export function turnInputFor(state: EpisodeUI, topic: string, message: string): 
     state: sameEpisode ? state.serverState : null,
     profile: null,
   };
+}
+
+/** Whether a message may be sent in this phase: only while a reply is in flight. The conversation
+ * never ends (an episode does), so `closed` does not block the composer. */
+export function canSend(phase: Phase): boolean {
+  return phase !== 'awaiting_tutor';
 }
 
 /** A synchronous in-flight latch. The `phase` check in `send` reads a value
