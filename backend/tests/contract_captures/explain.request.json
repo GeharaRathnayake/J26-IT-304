@@ -33,6 +33,7 @@
       "llm": 0.0,
       "total": 0.0
     },
-    "fallback": true
+    "fallback": true,
+    "resolution_declined": null
   }
 }

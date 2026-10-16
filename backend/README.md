@@ -126,6 +126,29 @@ setting `LLM_PROVIDER=template` directly — that setting is the rehearsal escap
 "What this means for C3" in `benchmarks/llm/README.md` for what the cycle-2 numbers do and do not
 support.
 
+**R6, the question guard (a question never resolves an episode).** The engine resolves an episode on
+the first `understood` label after a delivery, and the prototype proxy classifier (trained on synthetic
+answers) labels some questions `understood` ("where does the actual value come from?" scores
+P(confused) 0.115). So when the current message is a **question** (it ends with `?` or `？` once
+trailing `! . ) ] } " ' ” ’ » …` and spaces are ignored) and carries no strategy request, the engine
+**declines to resolve and escalates** to the next strategy (or offers a new cycle when the cycle is
+exhausted). It fires whether the `understood` label came from the model or from the rule layer
+(`that makes sense, but why does it work?`). Two additive fields record both facts, and neither
+changes the classifier's label: `meta.resolution_declined` (`"question_guard"` or `null`, every turn) and
+`episode_log.deliveries[].reaction_override` (`"question_guard"` on the delivery whose reaction was
+declined, `null` otherwise; the current message never carries it). The R4 turn log gains
+`"question_guard": true|false`, and the guard logs one INFO line (`R6 question guard: resolution declined
+(episode <id>)`, never any student text). `schema_version` stays `"1.0"`: the frontend's Zod schema
+ignores unknown keys but rejects another literal. **Accepted direction of error:** a trailing `?` will
+sometimes escalate someone who meant to stop ("got it, thanks?", "can we move on?"); a false confused
+costs one explanation, a false understood abandons a lost student, and since SF1 an escalation never
+blocks the conversation. R6 does **not** unlock R1 (short-message uncertainty) or R3 (negation guard),
+which stay held: one finding justifies one rule.
+
+**Metrics hazard: episodes are not conversations.** Since SF1 a conversation can contain several
+episodes (the next message after a resolution starts a new one). `is_weak`, `outcome` and
+`counted_strategies` in the episode log are **per episode**, so the episode count is not the
+conversation count; analyses must not double-count a student or a conversation.
 **Per-turn research log (off by default).** When `TURN_LOG_PATH` is set, one JSON line per turn is
 appended (message, the preceding tutor turn, label/probability/source, whether the model and the
 rules disagreed, and the decision). It records **real student messages, so it needs ethics approval

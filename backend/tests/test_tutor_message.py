@@ -112,12 +112,12 @@ def test_full_episode_over_http_on_inheritance(client):
     explain_fx, resolved_fx = fixture("tutor-response.explain.json"), fixture("tutor-response.resolved.json")
     for r in res:
         assert set(r) == set(explain_fx) == set(resolved_fx)
-        assert set(r["meta"]) - {"fallback"} == set(explain_fx["meta"])  # fallback is the one optional extra
+        assert set(r["meta"]) - {"fallback", "resolution_declined"} == set(explain_fx["meta"])  # fallback (optional) and R6's additive field
         assert set(r["meta"]["latency_ms"]) == set(explain_fx["meta"]["latency_ms"])
         assert set(r["updated_state"]) == set(explain_fx["updated_state"]) == STATE_KEYS
         assert set(r["confusion"]) == set(explain_fx["confusion"])
     assert set(res[-1]["episode_log"]) == set(resolved_fx["episode_log"])
-    assert set(res[-1]["episode_log"]["deliveries"][0]) == set(resolved_fx["episode_log"]["deliveries"][0])
+    assert set(res[-1]["episode_log"]["deliveries"][0]) - {"reaction_override"} == set(resolved_fx["episode_log"]["deliveries"][0])  # R6's additive field
 
     # the closing log
     log = res[-1]["episode_log"]
@@ -668,7 +668,7 @@ def test_a_broken_template_file_fails_startup_loudly(tmp_path, monkeypatch):
 TURN_KEYS = {
     "ts", "episode_id", "student_id", "topic", "message", "preceding_tutor_turn", "label", "probability",
     "source", "matched_phrase", "model_label", "disagreement", "detected_request", "action", "strategy",
-    "trigger", "cycle",
+    "trigger", "cycle", "question_guard",
 }
 
 

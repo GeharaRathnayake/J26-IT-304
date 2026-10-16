@@ -19,6 +19,9 @@ Research-critical rules (each has dedicated tests):
  5. trigger is "default" only for the episode's very first delivery, else "confusion"
     (including the first delivery of cycle 2).
  6. No non-request strategy repeats within a cycle; a requested one may.
+ 7. R6 (question guard, app/escalation/question_guard.py): an `understood` label on a QUESTION does
+    not resolve the episode; the engine escalates instead and marks the decision
+    `resolution_declined="question_guard"`.
 
 `strategies_used` is cumulative for the whole episode and never cleared. The current cycle
 is DERIVED by counting, anchored on `state.cycle`: the current cycle's consumed slots are
@@ -32,10 +35,11 @@ and the offer would never happen.)
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Literal, get_args
 from uuid import uuid4
 
+from app.escalation.question_guard import r6_applies
 from app.escalation.request_detector import detect_cycle_intent
 from app.schemas import Strategy, StrategyUse, Trigger, TutorState
 
@@ -71,6 +75,8 @@ class Decision:
     updated_state: TutorState  # always a NEW object, never the input
     outcome: Outcome | None = None  # terminal actions only
     winning_strategy: Strategy | None = None  # last delivered strategy, on resolved only
+    # Set only by R6: the label was `understood` but the message was a question, so the episode was not resolved.
+    resolution_declined: Literal["question_guard"] | None = None
 
 
 def default_episode_id() -> str:
@@ -246,6 +252,8 @@ def next_action(
         return _explain(state, request, trigger)
 
     if label == "understood" and state.strategies_used:
+        if r6_applies(label, message, request):  # R6: a question never resolves; escalate (or offer a new cycle)
+            return replace(_deliver_next(state, cfg), resolution_declined="question_guard")
         return Decision(
             "resolved", None, None, _with(state),
             outcome="resolved", winning_strategy=state.strategies_used[-1].strategy,

@@ -33,6 +33,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.escalation.engine import Decision, delivery_cycles
+from app.escalation.question_guard import r6_applies
+from app.escalation.request_detector import detect_request
 from app.schemas import Delivery, EpisodeLog, HistoryTurn, TutorState
 
 _TERMINAL = ("resolved", "end_unresolved")
@@ -125,6 +127,14 @@ def build_episode_log(
         # would need the same context rebuilt to re-derive the same result, and this shortcut
         # would stop being exact. Revisit this before changing the classifier's input.
         reaction = current_reaction if ridx is None else classify_fn(history[ridx].text)
+        # R6 audit: the classifier's label is kept as it was; only a HISTORICAL reaction can carry the
+        # flag. The current message never does: a resolving message was not a question, and an
+        # end_unresolved one answered a cycle offer, where R6 does not apply.
+        override = (
+            "question_guard"
+            if ridx is not None and r6_applies(reaction.label, history[ridx].text, detect_request(history[ridx].text))
+            else None
+        )
         deliveries.append(
             Delivery(
                 seq=n,
@@ -134,6 +144,7 @@ def build_episode_log(
                 student_label=reaction.label,
                 probability=reaction.probability,
                 source=reaction.source,
+                reaction_override=override,
             )
         )
 

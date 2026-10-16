@@ -225,8 +225,12 @@ async def handle_turn(req: TutorRequest, deps: Deps) -> TutorResponse:
                 classify=classify_ms, llm=llm_ms, total=_ms(t0, time.perf_counter())
             ),
             fallback=fallback,
+            resolution_declined=decision.resolution_declined,
         ),
     )
+    if decision.resolution_declined:
+        # No student text here (the opt-in turn log is the place for text).
+        logger.info("R6 question guard: resolution declined (episode %s)", state.episode_id)
 
     if deps.turn_logger is not None:
         preceding = next((t.text for t in reversed(req.history) if t.role == "tutor"), None)
@@ -249,6 +253,7 @@ async def handle_turn(req: TutorRequest, deps: Deps) -> TutorResponse:
                 "strategy": decision.strategy,
                 "trigger": decision.trigger,
                 "cycle": state.cycle,
+                "question_guard": decision.resolution_declined is not None,
             }
         )
     return response

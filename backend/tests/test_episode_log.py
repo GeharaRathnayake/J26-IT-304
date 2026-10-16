@@ -105,6 +105,9 @@ def test_built_log_equals_the_contract_fixture_exactly():
     log = build(resolved_decision(st), st, FIXTURE_HISTORY, FIXTURE_CURRENT, Recorder(FIXTURE_TABLE))
     expected = json.loads(FIXTURE.read_bytes())
     dumped = log.model_dump()
+    # R6 added ONE additive field per delivery (null here); the contract's own keys are all present, in order.
+    for built in dumped["deliveries"]:
+        assert built.pop("reaction_override") is None
     assert dumped == expected
     assert list(dumped) == list(expected)  # same keys, same order
     for built, want in zip(dumped["deliveries"], expected["deliveries"]):

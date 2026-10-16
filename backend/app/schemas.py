@@ -105,6 +105,9 @@ class Delivery(_Emitted):
     student_label: Label
     probability: float = Field(ge=0, le=1)
     source: Source
+    # Additive (R6). "question_guard" when the student's reaction to THIS delivery was an `understood`
+    # question that the engine declined to resolve on. The label above stays the classifier's output.
+    reaction_override: Literal["question_guard"] | None = None
 
 
 class EpisodeLog(_Emitted):
@@ -147,6 +150,8 @@ class ResponseMeta(_Emitted):
     llm: str
     latency_ms: LatencyBreakdown
     fallback: bool | None = None  # always set by this service; optional in the contract
+    # Additive (R6): "question_guard" when this turn declined to resolve because the message was a question.
+    resolution_declined: Literal["question_guard"] | None = None
 
 
 class TutorResponse(_Emitted):

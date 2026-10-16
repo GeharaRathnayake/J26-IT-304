@@ -61,7 +61,8 @@
         "cycle": 1,
         "student_label": "confused",
         "probability": 0.9417775160834335,
-        "source": "rule"
+        "source": "rule",
+        "reaction_override": null
       },
       {
         "seq": 2,
@@ -70,7 +71,8 @@
         "cycle": 1,
         "student_label": "confused",
         "probability": 0.9417775160834335,
-        "source": "rule"
+        "source": "rule",
+        "reaction_override": null
       },
       {
         "seq": 3,
@@ -79,7 +81,8 @@
         "cycle": 1,
         "student_label": "confused",
         "probability": 0.9417775160834335,
-        "source": "rule"
+        "source": "rule",
+        "reaction_override": null
       },
       {
         "seq": 4,
@@ -88,7 +91,8 @@
         "cycle": 1,
         "student_label": "confused",
         "probability": 0.9417775160834335,
-        "source": "rule"
+        "source": "rule",
+        "reaction_override": null
       },
       {
         "seq": 5,
@@ -97,7 +101,8 @@
         "cycle": 2,
         "student_label": "understood",
         "probability": 0.946111700443757,
-        "source": "rule"
+        "source": "rule",
+        "reaction_override": null
       }
     ],
     "counted_strategies": 5,
@@ -122,6 +127,7 @@
       "llm": 0.0,
       "total": 0.0
     },
-    "fallback": true
+    "fallback": true,
+    "resolution_declined": null
   }
 }

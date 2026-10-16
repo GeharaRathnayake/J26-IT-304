@@ -19,6 +19,9 @@ REPORTED = [
     "If Dog extends Animal, does Dog automatically get the name 'Buddy'?",
     "I understand that Dog inherits the name field, but where does the actual value 'Buddy' come from?",
 ]
+# A conversation that genuinely resolves (since R6, the reported message 3 no longer does): it ends on a
+# rule-listed understanding line that is not a question.
+RESOLVING = [REPORTED[0], REPORTED[1], "got it"]
 NEXT_MESSAGE = "I still do not get where Buddy comes from."
 
 
@@ -33,6 +36,11 @@ def reported_conversation(client):
     return ep, ep.play(*REPORTED)
 
 
+def resolving_conversation(client):
+    ep = Episode(client, topic="inheritance")
+    return ep, ep.play(*RESOLVING)
+
+
 def new_episode_body(ep, message, request_id):
     return {
         "request_id": request_id, "student_id": ep.student_id, "session_id": ep.session_id,
@@ -40,18 +48,29 @@ def new_episode_body(ep, message, request_id):
     }
 
 
-def test_the_reported_conversation_resolves_on_the_third_message(client):
-    """CURRENT behaviour, pinned. A tester's conversation resolved on message 3 and the student could
-    not reply. Two backend facts cause that: the token "actual" flips the classifier to `understood`
-    (p=0.27, source model; see the classifier pin below), and the engine resolves the episode on ONE
-    `understood` after a delivery (app/escalation/engine.py:248). Neither is changed by SF1; if a future
-    classifier or engine change makes this conversation continue, this test goes red on purpose."""
+def test_the_reported_conversation_no_longer_resolves_on_the_third_message_r6_escalates(client):
+    """The tester's conversation resolved on message 3 and the student could not reply. Two backend facts
+    caused that: the token "actual" flips the classifier to `understood` (p=0.27, source model; see the
+    classifier pin below), and the engine resolves the episode on ONE `understood` after a delivery
+    (app/escalation/engine.py:248). The classifier and that rule are unchanged; R6 (the question guard,
+    app/escalation/question_guard.py) now declines to resolve because message 3 is a question: the
+    episode escalates to the next strategy and `meta.resolution_declined` says why. If R6 is removed,
+    or the classifier stops calling this message `understood`, this test goes red on purpose.
+
+    Expected value history for message 3:
+      pre-R6:  resolved   <- the DEFECT: a question labelled `understood` resolved the episode
+                             (backendPlan/03 section 1.1: the proxy scores some questions understood)
+      post-R6: escalated  <- R6, the fix (backendPlan/04 section 3.5)
+    If this fails, decide which it is before changing the expected value: a regression of R6,
+    or a second intended change that needs its own ruling."""
     _, res = reported_conversation(client)
     assert [(r["action"], r["strategy"]) for r in res] == [
-        ("explain", "theory"), ("explain", "example"), ("resolved", None),
+        ("explain", "theory"), ("explain", "example"), ("explain", "simplified"),
     ]
-    assert res[2]["confusion"]["label"] == "understood" and res[2]["confusion"]["source"] == "model"
-    assert res[2]["episode_log"] is not None and res[2]["episode_log"]["outcome"] == "resolved"
+    third = res[2]
+    assert third["confusion"]["label"] == "understood" and third["confusion"]["source"] == "model"
+    assert third["meta"]["resolution_declined"] == "question_guard"
+    assert third["episode_log"] is None
     for i, r in enumerate(res, start=1):
         assert contract_violations(r, f"req-{i}") == []
 
@@ -59,7 +78,8 @@ def test_the_reported_conversation_resolves_on_the_third_message(client):
 def test_the_next_message_after_resolution_starts_a_new_episode(client):
     """What the frontend now sends after an episode ends: `state: null` and `history: []`. The service
     answers a normal first turn (explain, trigger default) in a NEW episode."""
-    ep, res = reported_conversation(client)
+    ep, res = resolving_conversation(client)
+    assert res[-1]["action"] == "resolved"
     old_id = res[-1]["updated_state"]["episode_id"]
     r = client.post("/tutor/message", json=new_episode_body(ep, NEXT_MESSAGE, "req-new"))
     assert r.status_code == 200
@@ -76,7 +96,8 @@ def test_documented_hazard_the_post_resolution_state_reopens_the_same_episode(cl
     tell a resolved episode's `updated_state` from a live one: a message sent with it continues the SAME
     `episode_id` and escalates to the next strategy, corrupting the finished episode's record. This is
     why the frontend must send `state: null` (turnInputFor in episodeRules.ts) after resolution."""
-    ep, res = reported_conversation(client)
+    ep, res = resolving_conversation(client)
+    assert res[-1]["action"] == "resolved"
     resolved_state = res[-1]["updated_state"]
     body = new_episode_body(ep, NEXT_MESSAGE, "req-reopen")
     body["history"], body["state"] = ep.history, resolved_state
