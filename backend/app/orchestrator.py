@@ -167,7 +167,7 @@ async def handle_turn(req: TutorRequest, deps: Deps) -> TutorResponse:
     try:
         decision = next_action(
             req.state, result.label, detected, req.message, deps.cfg, deps.new_episode_id,
-            request_is_confusion=request_is_confusion,
+            request_is_confusion=request_is_confusion, label_source=result.source,
         )
     except InvalidStateError as exc:
         raise TurnError(422, str(exc)) from exc
@@ -228,9 +228,11 @@ async def handle_turn(req: TutorRequest, deps: Deps) -> TutorResponse:
             resolution_declined=decision.resolution_declined,
         ),
     )
-    if decision.resolution_declined:
-        # No student text here (the opt-in turn log is the place for text).
+    # No student text in either line (the opt-in turn log is the place for text).
+    if decision.resolution_declined == "question_guard":
         logger.info("R6 question guard: resolution declined (episode %s)", state.episode_id)
+    elif decision.resolution_declined == "model_understood_not_trusted":
+        logger.info("R7: model-only understood not trusted, resolution declined (episode %s)", state.episode_id)
 
     if deps.turn_logger is not None:
         preceding = next((t.text for t in reversed(req.history) if t.role == "tutor"), None)
@@ -253,7 +255,8 @@ async def handle_turn(req: TutorRequest, deps: Deps) -> TutorResponse:
                 "strategy": decision.strategy,
                 "trigger": decision.trigger,
                 "cycle": state.cycle,
-                "question_guard": decision.resolution_declined is not None,
+                "question_guard": decision.resolution_declined == "question_guard",
+                "model_understood_guard": decision.resolution_declined == "model_understood_not_trusted",
             }
         )
     return response

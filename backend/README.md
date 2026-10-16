@@ -145,6 +145,26 @@ costs one explanation, a false understood abandons a lost student, and since SF1
 blocks the conversation. R6 does **not** unlock R1 (short-message uncertainty) or R3 (negation guard),
 which stay held: one finding justifies one rule.
 
+**R7, a model-only `understood` never resolves (only a rule-matched one does).** The model half of the
+prototype proxy classifier hands out `understood` inconsistently ("ask me questions related to the topic"
+0.051, "quiz me on inheritance" 0.305, but "test me" 0.609 confused) while being close to inverted on
+real understanding ("that makes sense" 0.992 confused, "got it" 0.946 confused). So the engine resolves
+**only when the RULE layer matched an understanding phrase** (`label == "understood"` and
+`source == "rule"`); a model-sourced `understood` escalates to the next strategy (or offers a new cycle)
+instead. **To resolve, a student uses a listed understanding phrase**: they live in
+`models/clf-v1.0.0/rules.yaml` under `understanding_phrases`. **Precedence: R6 first, then R7**, so a
+model-sourced `understood` that is also a question stays `question_guard`, and R7 covers the model-sourced
+non-questions; a message that carries a strategy request follows the request branch, and a reply to a
+cycle offer is read by cycle intent (neither guard is consulted). Audit, reusing R6's fields: the value
+`"model_understood_not_trusted"` joins `"question_guard"` in `meta.resolution_declined` and in
+`episode_log.deliveries[].reaction_override` (never on the current message), the classifier's label is
+never altered, and the R4 turn log gains `"model_understood_guard"` next to `"question_guard"` (each is
+true only for its own guard). One INFO line fires with no student text. **Measured side effect** (30
+natural "I understand" phrasings): 26 were already labelled `confused` by the model and never resolved;
+R7 newly blocks only "that helped a lot" (0.197, model), and the rule phrases tested ("got it, thanks",
+"that makes sense", "i get it now") still resolve. A student who expresses understanding in unlisted
+words gets one more explanation, and since SF1 that never blocks them. **There is no phrase list** (by
+ruling), and R7 does not unlock R1 or R3.
 **Metrics hazard: episodes are not conversations.** Since SF1 a conversation can contain several
 episodes (the next message after a resolution starts a new one). `is_weak`, `outcome` and
 `counted_strategies` in the episode log are **per episode**, so the episode count is not the

@@ -35,6 +35,7 @@ from typing import Any
 from app.escalation.engine import Decision, delivery_cycles
 from app.escalation.question_guard import r6_applies
 from app.escalation.request_detector import detect_request
+from app.escalation.resolution_guard import r7_applies
 from app.schemas import Delivery, EpisodeLog, HistoryTurn, TutorState
 
 _TERMINAL = ("resolved", "end_unresolved")
@@ -130,11 +131,14 @@ def build_episode_log(
         # R6 audit: the classifier's label is kept as it was; only a HISTORICAL reaction can carry the
         # flag. The current message never does: a resolving message was not a question, and an
         # end_unresolved one answered a cycle offer, where R6 does not apply.
-        override = (
-            "question_guard"
-            if ridx is not None and r6_applies(reaction.label, history[ridx].text, detect_request(history[ridx].text))
-            else None
-        )
+        override = None
+        if ridx is not None:
+            text = history[ridx].text
+            request = detect_request(text)
+            if r6_applies(reaction.label, text, request):  # R6 first, then R7 (same precedence as the engine)
+                override = "question_guard"
+            elif r7_applies(reaction.label, reaction.source, text, request):
+                override = "model_understood_not_trusted"
         deliveries.append(
             Delivery(
                 seq=n,

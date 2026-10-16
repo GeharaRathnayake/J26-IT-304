@@ -668,7 +668,7 @@ def test_a_broken_template_file_fails_startup_loudly(tmp_path, monkeypatch):
 TURN_KEYS = {
     "ts", "episode_id", "student_id", "topic", "message", "preceding_tutor_turn", "label", "probability",
     "source", "matched_phrase", "model_label", "disagreement", "detected_request", "action", "strategy",
-    "trigger", "cycle", "question_guard",
+    "trigger", "cycle", "question_guard", "model_understood_guard",
 }
 
 

@@ -94,7 +94,7 @@ FIXTURE_CURRENT = R("understood", 0.22, "model")
 
 
 def resolved_decision(st, message="thanks"):
-    return next_action(st, "understood", None, message)
+    return next_action(st, "understood", None, message, label_source="rule")
 
 
 # --- shape: reproduce the fixture exactly ----------------------------------------------------
@@ -159,9 +159,9 @@ def make_log(used, outcome_decision="resolved", cycle=1, threshold=3):
         spec += [f"T:{strategy}"] + ([f"S:r{i}"] if i < len(used) - 1 else [])
     hist = history(*spec)
     if outcome_decision == "resolved":
-        decision = next_action(st, "understood", None, "ok")
+        decision = next_action(st, "understood", None, "ok", label_source="rule")
     else:  # exhausted final cycle or similar: build an end_unresolved decision directly
-        decision = next_action(st, "confused", None, "hmm", EngineConfig(max_cycles=cycle))
+        decision = next_action(st, "confused", None, "hmm", EngineConfig(max_cycles=cycle), label_source="rule")
     return build(decision, st, hist, R("understood", 0.2, "model"), Recorder(), threshold)
 
 
@@ -229,7 +229,7 @@ def test_two_cycle_episode_with_requests_in_both_cycles_gets_the_right_cycle_num
     st = state(used, cycle=2)
     spec = ["S:q", "T:theory", "S:a", "T:example", "S:b", "T:example", "S:c", "T:simplified", "S:d", "T:analogy",
             "S:e", "T:-", "S:yes", "T:theory", "S:f", "T:analogy", "S:g", "T:example"]
-    decision = next_action(st, "understood", None, "ok")
+    decision = next_action(st, "understood", None, "ok", label_source="rule")
     log = build(decision, st, history(*spec), R("understood", 0.1, "model"), Recorder())
     assert [d.cycle for d in log.deliveries] == [1, 1, 1, 1, 1, 2, 2, 2]
     assert [d.seq for d in log.deliveries] == list(range(1, 9))
@@ -273,7 +273,7 @@ def test_offer_and_clarify_turns_between_deliveries_are_handled():
         "S:q", "T:theory", "S:r1", "T:example", "S:r2", "T:simplified", "S:r3", "T:analogy",
         "S:r4", "T:-", "S:what do you mean", "T:-",
     )
-    decision = next_action(st, "confused", None, "no")  # decline the offer
+    decision = next_action(st, "confused", None, "no", label_source="rule")  # decline the offer
     assert decision.action == "end_unresolved"
     rec = Recorder({"r4": R("confused", 0.9, "model")})
     log = build(decision, st, hist, R("confused", 0.5, "model"), rec)
@@ -288,7 +288,7 @@ def test_accepting_a_new_cycle_does_not_make_yes_the_reaction_to_the_last_cycle_
     st = state(used, cycle=2)
     hist = history("S:q", "T:theory", "S:r1", "T:example", "S:r2", "T:simplified", "S:r3", "T:analogy",
                    "S:r4", "T:-", "S:yes", "T:theory")
-    decision = next_action(st, "understood", None, "ok")
+    decision = next_action(st, "understood", None, "ok", label_source="rule")
     rec = Recorder()
     build(decision, st, hist, R("understood", 0.2, "model"), rec)
     # r4 (before the offer turn) reacts to the cycle-1 analogy; 'yes' is an answer to the offer, not a
@@ -326,7 +326,7 @@ class FrontendSim:
         sent_state = copy.deepcopy(self.state)
         self.history.append(st_turn(message))  # SEND_STARTED (after the request body was captured)
         result = classify(self.model, message)
-        decision = next_action(sent_state, result.label, detect_request(message), message, EngineConfig())
+        decision = next_action(sent_state, result.label, detect_request(message), message, EngineConfig(), label_source=result.source)
         if self.last_delivery_seq is not None:
             self.live[self.last_delivery_seq] = result  # this message reacts to the previous turn's delivery
         if decision.action == "explain":
@@ -423,7 +423,7 @@ def test_empty_history_raises():
 
 def test_non_terminal_decision_raises():
     st = state(FIXTURE_USED)
-    explain = next_action(st, "confused", None, "hmm")
+    explain = next_action(st, "confused", None, "hmm", label_source="rule")
     assert explain.action == "explain"
     with pytest.raises(EpisodeLogError, match="terminal"):
         build(explain, st, FIXTURE_HISTORY, FIXTURE_CURRENT, Recorder())

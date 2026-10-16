@@ -43,9 +43,9 @@ def state(cycle=1, used=(), awaiting=False, prior=()):
 CYCLE1 = [("theory", "default"), ("example", "confusion"), ("simplified", "confusion"), ("analogy", "confusion")]
 
 
-def step(st, label="confused", message="hmm", cfg=CFG):
+def step(st, label="confused", message="hmm", cfg=CFG, source="rule"):
     """One turn as the pipeline will run it: detect the request, then ask the engine."""
-    return next_action(st, label, detect_request(message), message, cfg, new_episode_id=eid)
+    return next_action(st, label, detect_request(message), message, cfg, new_episode_id=eid, label_source=source)
 
 
 def pairs(st):
@@ -401,9 +401,9 @@ def test_valid_boundary_states_are_accepted():
 
 def test_unknown_label_or_request_is_a_programming_error():
     with pytest.raises(ValueError):
-        next_action(None, "maybe", None, "x")
+        next_action(None, "maybe", None, "x", label_source="rule")
     with pytest.raises(ValueError):
-        next_action(None, "confused", "lecture", "x")
+        next_action(None, "confused", "lecture", "x", label_source="rule")
 
 
 # --- Tier 3 seam and config -----------------------------------------------------------------------------
@@ -448,7 +448,7 @@ def test_default_episode_id_shape():
 
 
 def override(st, request, message="hmm", label="confused"):
-    return next_action(st, label, request, message, CFG, new_episode_id=eid, request_is_confusion=True)
+    return next_action(st, label, request, message, CFG, new_episode_id=eid, request_is_confusion=True, label_source="rule")
 
 
 def test_override_first_message_request_becomes_a_counted_confusion_delivery():
@@ -458,7 +458,7 @@ def test_override_first_message_request_becomes_a_counted_confusion_delivery():
 
 
 def test_override_is_off_by_default_so_a_plain_request_stays_a_request():
-    d = next_action(None, "confused", "theory", "hmm", CFG, new_episode_id=eid)
+    d = next_action(None, "confused", "theory", "hmm", CFG, new_episode_id=eid, label_source="rule")
     assert d.trigger == "request"
 
 
@@ -467,7 +467,7 @@ def test_override_applies_when_the_strategy_is_unused_in_the_current_cycle():
     d = override(st, "analogy")
     assert (d.strategy, d.trigger) == ("analogy", "confusion")
     # and it is a real slot now: the default order skips it
-    d2 = next_action(d.updated_state, "confused", None, "hmm", CFG)
+    d2 = next_action(d.updated_state, "confused", None, "hmm", CFG, label_source="rule")
     assert (d2.strategy, d2.trigger) == ("example", "confusion")
 
 
