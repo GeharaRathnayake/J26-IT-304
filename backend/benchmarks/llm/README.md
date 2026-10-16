@@ -188,6 +188,53 @@ D2, as at 2026-10-17 (llama3.2:3b):
 - The template fallback ships either way, as a deterministic safety net - not as the
   reason the LLM is allowed out.
 ```
+**A note on the two new r3 instruction lines (lead ruling 5, 2026-10-17).** Both new r3 instruction lines
+were measured after shipping and are weak. `ANSWER_THE_QUESTION`: for "I don't understand how super works"
+(inheritance, theory, 220 tokens), the reply explains the `super` keyword in its body in **2 of 10** runs
+(team lead, keyword with a word boundary, "superclass" excluded; the backend lead's 3 runs gave 1). In one
+reply `super` appeared only in the `**Check:**` question: the student was quizzed on the word they asked
+about. `QUIZ_INSTRUCTION`: "ask me questions related to the topic" produced student-directed questions in
+**0 of 10** replies. R7 escalates that message to a strategy (`example`), and the strategy intent overrides the
+quiz line. So r3's gains come from the token cap and the `STRATEGY_INTENT` harmonisation, **not** from these
+two lines. Both stay in the prompt: they are part of the measured configuration, and removing them would be r4.
+Fixing either is PP2 (a dedicated quiz strategy). Measured on 2026-10-17 by the team lead and the backend lead
+(the scripts were not committed); it was not re-run or re-measured in the M1 stage, and no relevance metric
+was added to any script (relevance is a human judgement; the blind rating is the instrument).
+
+## Memory (M1, 2026-10-17): the generator sees the episode so far
+
+From M1 the generator's prompt carries the earlier turns of the **current episode** (the last 6 turns, each cut
+to its first 600 characters at a word boundary, inside a `<conversation>` block before the student's message).
+The classifier still sees the current message only (C2/C5). Measured on the GPU (`llama3.2:3b`, r3, 220 tokens,
+3 runs x 16 prompts per variant, `gpu_fraction` 1.0 for both) with `scripts/benchmark_memory.py`; the
+files are in `benchmarks/llm/memory/`. A = no history; B = the scripted 4-turn history built from the cycle-1
+templates (two fixed student turns, "I don't understand" and "can you explain differently?"). There is no pass
+bar.
+
+| metric | A: no history | B: with history | B - A |
+|---|---|---|---|
+| median prompt characters | 1035 | 2084 | +1050 |
+| wall p50 (s) | 4.67 | 4.25 | -0.42 |
+| wall p95 (s) | 5.74 | 5.82 | +0.08 |
+| wall max (s) | 5.77 | 5.95 | +0.18 |
+| shippable in form (%) | 100.0 | 97.9 | **-2.1** |
+| median shipped words | 106 | 106 | 0 |
+| untagged leak (%) | 0.0 | 0.0 | 0.0 |
+| cap-stops (%) | 37.5 | 27.1 | -10.4 |
+| median tok/s | 39.6 | 39.4 | -0.2 |
+
+Reading, in plain words. History doubles the prompt (1035 to 2084 characters) and leaves latency flat on the
+GPU: p95 5.74 s to 5.82 s, with the median lower in B. **B is worse on one thing:** one reply of 48
+(`loops` / `example`, run 3) stopped normally with no closed Java block, so it was not shippable in form and
+the service would have served the template instead (97.9% against 100%). Everything else is equal or better,
+but these are one run of 48 per variant, A ran first, and the GPU ended each run at 89 C with
+`sw_thermal_slowdown` active, so differences of a few tenths of a second (and the cap-stop difference) are
+within order and thermal noise and are not claims. The earlier caution (c2all, four priors, p95 26.3 s against
+14.6 s) was measured on the CPU and did not repeat here with about 1 KB of extra context on the GPU. The
+overlap between cycle-2 priors and the conversation was not exercised (priors exist only from cycle 2; this set
+is cycle 1), so it is not reported. Whether the replies actually use the history is not measured: that is a
+human judgement. "Shippable in form" is not accuracy.
+
 ## How to read `SUMMARY.md`
 
 - **Row label** `model @N rX [c2same|c2all] (date)`: `N` = `num_predict`, `rX` = prompt revision, the

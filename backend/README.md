@@ -117,6 +117,17 @@ student's text or the model's output). `meta.llm` is `ollama:llama3.2:3b` on eve
 fallback turns. At startup a background warm-up loads the model (`keep_alive: 30m`); it never
 blocks or fails startup. With Ollama stopped the service still answers every turn, with templates.
 
+**Memory (M1): what the generator sees, and what the classifier never does.** The generator's prompt now
+carries the earlier turns of the **current episode** as a bounded `<conversation>` block: the last **6**
+turns, each cut to its first **600** characters (at a word boundary, marked with an ellipsis), and every
+turn is neutralised so a student typing a closing tag cannot end the block early. After SF1 the frontend sends
+`history: []` when a new episode starts, so memory reaches back to the start of the current episode and no
+further (memory across episodes would need a contract change; it is PP2). With no history the prompt is
+byte-identical to the r3 prompt. **The classifier still sees the current message only** (C2/C5): history
+never reaches `classify`, which `tests/test_purity.py` (its shape) and the request-level C2/C5 tests (its
+behaviour) guard. The cost was measured on the GPU and is reported, with the one thing that got worse, in
+`benchmarks/llm/README.md` (section "Memory (M1)").
+
 **Cycle-2 prompts (S8b).** From cycle 2, a delivery's prompt carries only the earlier
 explanation(s) of the *same strategy*, not every earlier explanation of the episode
 (`app/generation/prompts.py::same_strategy_priors`); see `benchmarks/llm/README.md` for the

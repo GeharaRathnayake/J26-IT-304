@@ -132,6 +132,7 @@ async def _explain_text(req: TutorRequest, deps: Deps, strategy: str, state) -> 
             cycle=state.cycle,
             student_message=req.message,
             prior_explanations=priors,
+            conversation=req.history,  # M1: the generator sees the episode so far; classify never does
         )
         completion = await asyncio.wait_for(deps.adapter.complete(prompt, deps.llm_timeout_s), deps.llm_timeout_s)
         if would_ship(completion.text, strategy, completion.truncated):
