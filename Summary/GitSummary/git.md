@@ -326,6 +326,34 @@ Append here, newest last. One row per real Git action.
 | 2026-10-13 | `main` | Docs reorganised into `dev/Summary/{GitSummary,frontendSummary,Experiment1Summary,backendSumary}/` | `git.md` now lives at `Summary/GitSummary/git.md`. Any document referring to `dev/git.md` is stale. |
 | 2026-10-13 | `notebooks/confusion-classifier` | `git switch -c notebooks/confusion-classifier`, 12 commits (`2187018`…`80e4ce9`) | Experiment 1. Nine notebooks, one per pipeline stage; `confusion_baseline/` package; `clf-v1.0.0` artifact; handover in `Summary/Experiment1Summary/`. Branch touched only `experiment1/` and `Summary/Experiment1Summary/` — §4 rule 1 held. |
 | 2026-10-13 | `main` | `git merge --no-ff notebooks/confusion-classifier` → `6ed535a` | Experiment 1 integrated. Independently verified by the lead: artifact loads and predicts, `train_baseline.py` passes 5/5 checks including `predict_proba` matching the published pipeline to 1e-12. Result: macro F1 0.663, F1(confused) 0.758 — **target F1 ≥ 80% not met, not tuned toward**. |
+| 2026-10-14 | `backend/pp1-service` | `git switch -c backend/pp1-service` | Backend stream (FastAPI tutor service), per the §4 scheme. All backend commits below were verified independently by the backend lead before commit (re-run tests, mutation checks on a scratch copy). |
+| 2026-10-14 | `backend/pp1-service` | S1 `0a37b32`: scaffold, verified `clf-v1.0.0` load, `/health` | Raw-byte SHA-256 check against `metadata.json`; "parse what you hashed"; degraded start instead of a hard fail. |
+| 2026-10-14 | `backend/pp1-service` | S1b `3839fce`: Docker build, test and serve | `python:3.13.16-slim` pinned by digest; Docker is the dev/test convenience, the venv is the demo path. |
+| 2026-10-14 | `backend/pp1-service` | S1c `220c0de`: serve on `127.0.0.1:8001` via `python -m app` | Port 8001 fixed by the frontend default. |
+| 2026-10-14 | `backend/pp1-service` | S2 `33fcf0b`: rules-first hybrid classifier | 51 confusion / 19 understanding phrases checked first; model P(confused) always returned; classify sees only the current message (C2, C5). |
+| 2026-10-14 | `backend/pp1-service` | S3 `d23e7ab`: `/topics`, `/tutor/message` validation | Strict Pydantic v2; frontend contract fixtures copied byte-exact with drift guards. |
+| 2026-10-14 | `backend/pp1-service` | S4 `0566f9e`: escalation engine and request detector | theory → example → simplified → analogy; requested strategies do not use a slot (C6). |
+| 2026-10-14 | `backend/pp1-service` | S5a `5a10e25`: hedges are unclear at a cycle offer | Cycle intent is accept / decline / unclear. |
+| 2026-10-14 | `backend/pp1-service` | S5b `9880682`: episode log by re-classifying reactions | Never copies the current label onto every delivery. |
+| 2026-10-14 | `backend/pp1-service` | S6a `220eb70`: generation layer, templates and prompts | `fallbacks.yaml` 60 entries incl. `general`; Java blocks compiled with JDK 21. |
+| 2026-10-14 | `backend/pp1-service` | S6b `7554414`: `POST /tutor/message` end to end on templates | `episode_log` non-null iff terminal; 422 mappings; C2/C5 request-level tests; R4 logging opt-in, off by default. |
+| 2026-10-15 | `backend/pp1-service` | S7 `37c4da9`: reproducible LLM benchmark + qwen3:4b results | qwen3:4b disqualified (100% untagged reasoning leak). |
+| 2026-10-15 | `backend/pp1-service` | S7 results `9df1c40`: llama3.2:3b benchmark | Input to D2. |
+| 2026-10-15 | `backend/pp1-service` | S7b `38c648a`: prompt r2, post-processing, D2 re-run | llama3.2:3b usable 88% @110 against a 90% bar: did NOT pass D2; ships with a template fallback (owner decision). |
+| 2026-10-15 | `backend/pp1-service` | S8 `58c815e`: Ollama adapter, LLM default with template fallback | `would_ship` gate shared with the benchmark; tests never reach a real Ollama. |
+| 2026-10-15 | `backend/pp1-service` | S8b `2e27371`: cycle-2 same-strategy priors; `LLM_TIMEOUT_S` 18 s | Timeout pre-registered as ceil(p95 × 1.2) from the cycle-2 re-measure. |
+| 2026-10-15 | `backend/pp1-service` | BS `21dd41c`: blind rating sheet (D2 criterion 5) | Seeded 24-item sheet, key, scorer. Rating is by a human, never an agent; pending. |
+| 2026-10-16 | `backend/pp1-service` | S9 `fe5fa20`: CORS, `GET /model-info`, compose `name: j26-tutor` | Real-browser CORS check passed (Chromium, not curl). Docker NOT run at commit time (daemon down); closed 2026-10-16 below. |
+| 2026-10-16 | `backend/pp1-service` | Docker gap CLOSED for S8, S8b, BS, S9 (HEAD `fe5fa20` via `git archive`) | Verification, not a commit: build exit 0 (`j26-tutor` builds); 909 passed + 4 drift skips. |
+| 2026-10-16 | `backend/pp1-service` | S10 `f89f0fa`: Zod contract check on real responses, C2/C5 AST purity guard | Docker allowed skips become SIX (4 drift guards + 2 Zod tests); shared `gpu_fraction`. |
+| 2026-10-16 | `backend/pp1-service` | S10g `904701f`: cycle-2 template variants for `general` | C3 on the template path: `inheritance` and `general` only (lead ruling). |
+| 2026-10-16 | `backend/pp1-service` | S10b + S10r `3c10a70` (combined: both edit `README.md`) | `/health` `llm_gpu_fraction` + warm-up placement log; C3 wording to the approved scope; unhandled-500 CORS note. |
+| 2026-10-16 | `backend/pp1-service` | S10c `eb91c42`: GPU re-run of the llama3.2:3b benchmark with placement | `gpu_fraction` 1.0; p95 2.42 s (cycle 1), 2.79 s (cycle 2). Every earlier timing was CPU (dGPU was off). D2 not re-scored. |
+| 2026-10-16 | `backend/pp1-service` | SF1 backend `e6d951c`: pin continuing after a resolved episode | Owner requirement: the conversation never ends on `resolved`; a post-resolution state would reopen the episode, so the frontend starts a new one. |
+| 2026-10-16 | `dev1` | SF1 frontend `97c860c`: keep the conversation open after an episode ends | Owner-approved exception (six files, `api/` contract untouched); committed on the frontend stream per §4 rule 1. |
+| 2026-10-16 | `backend/pp1-service` | R6 `ab92801`: question guard, a question never resolves an episode | Lead ruling `04` §3.5; audited via `reaction_override`, `meta.resolution_declined`, turn log. Does not unlock R1/R3. venv 1025; Docker 1019 + 6. |
+| 2026-10-16 | `main` | `git merge --no-ff backend/pp1-service` → `0a1a892` | 23 backend commits integrated (S1 → R6). `backend/pp1-service` kept. |
+| 2026-10-16 | `main` | `git merge --no-ff dev1` → `a52578c` | SF1 frontend (one commit) integrated. Verified on `main`: backend 1025 passed, frontend 55 passed, typecheck clean, model hashes intact, `experiment1/` and `Summary/` untouched. |
 
 ### Pre-Git state of the work, for the record
 
