@@ -27,7 +27,7 @@ export function TutorFeatureApp() {
   // generic "Voice message" instead of the recognised text.
   const speech = useSpeechInput({
     active: voiceOpen,
-    paused: episode.state.phase === 'awaiting_tutor' || episode.state.phase === 'closed',
+    paused: episode.state.phase === 'awaiting_tutor',
     onUtterance: (text) => {
       const spoken = episode.state.topic ? null : inferTopic(text, episode.topics);
       void episode.send(text, { voice: true, ...(spoken ? { topic: spoken.id } : {}) });
@@ -35,7 +35,7 @@ export function TutorFeatureApp() {
   });
   const topic = episode.state.topic ?? '';
   useEffect(() => { localStorage.setItem('java-tutor.sidebar', sidebarOpen ? 'expanded' : 'collapsed'); }, [sidebarOpen]);
-  const composerDisabled = episode.state.phase === 'awaiting_tutor' || episode.state.phase === 'closed';
+  const composerDisabled = episode.state.phase === 'awaiting_tutor';
   // Clicking empty space in the main area puts the caret in the composer.
   // Controls, links and text the student is selecting are left alone.
   const focusComposer = (event: React.MouseEvent<HTMLElement>) => {
