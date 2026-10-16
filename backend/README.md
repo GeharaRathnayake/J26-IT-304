@@ -98,20 +98,20 @@ detector), decides the next move with the escalation engine, and returns a full 
 | `LLM_PROVIDER` | `ollama` | `ollama` generates explanations with a local model; `template` serves the bundled template replies (`meta.fallback: true` on every turn); `mock` uses a test adapter. Any other value fails at startup. |
 | `LLM_MODEL` | `llama3.2:3b` | Decision D2 (see below). |
 | `OLLAMA_URL` | `http://127.0.0.1:11434` | `127.0.0.1`, not `localhost` (an IPv6 lookup delay on Windows). Docker sets `http://host.docker.internal:11434`. |
-| `LLM_MAX_TOKENS` | `110` | `num_predict`. Measured 88% usable at 110 against 81% at 80. |
-| `LLM_TIMEOUT_S` | `18.0` | Cutoff for a generation call: `ceil(max(p95_cycle1, p95_cycle2_same) × 1.2)` at 110 tokens = `ceil(max(11.0, 14.6) × 1.2)` (S8b; see `benchmarks/llm/README.md`). Never derive it from the 3 s latency target. |
+| `LLM_MAX_TOKENS` | `220` | `num_predict`. r3, owner decision B (2026-10-17): 220 (r2 used 110). On the GPU, r3 was 100% / 97.9% shippable in form (cycle 1 / cycle 2), with 33.3% / 39.6% of replies stopped at this cap and wall p95 about 6 s (see "The LLM and its safety net" and `benchmarks/llm/README.md`). r2 at 110 was 87.5% shippable in form. |
+| `LLM_TIMEOUT_S` | `18.0` | Cutoff for a generation call: `ceil(max(p95_cycle1, p95_cycle2_same) × 1.2)` at r2's 110 tokens (dGPU off) = `ceil(max(11.0, 14.6) × 1.2)` (S8b; see `benchmarks/llm/README.md`). Not re-derived for r3 (lead ruling): it guards the dGPU-off case, and r3's GPU p95 is about 6 s. Never derive it from the 3 s latency target. |
 | `TURN_LOG_PATH` | unset | Opt-in per-turn research log (see below). |
 | `WEAK_THRESHOLD` | `3` | `is_weak` when counted strategies reach this or the episode ends unresolved. |
 | `MAX_CYCLES` | `2` | Explanation cycles per episode. |
 | `CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Browser origins allowed to call the service (decision D5: the frontend calls it cross-origin). Comma-separated, no JSON quoting. **Exact origins only: no `*`, no trailing slash, no path, scheme required** (a trailing slash never matches the browser's `Origin`); any of these fails at startup with a message naming `CORS_ORIGINS`. Only a **browser** enforces CORS: curl and the tests pass whether or not it is right, so use the browser check below. |
 
 **The LLM and its safety net (D2).** Benchmark: `benchmarks/llm/SUMMARY.md`. `qwen3:4b` was
-disqualified (untagged reasoning in 100% of replies). `llama3.2:3b` showed no reasoning leak and a
-wall p95 of 11.0 s, but its replies were usable in **88%** of cases against a **90%** bar; theory,
-simplified and analogy were 12/12, while examples often truncate their code block. It is the
-default **with** the template as the deterministic safety net: every reply is post-processed, and
-one that would not ship (`app/generation/postprocess.py::would_ship`: not usable, or untagged
-reasoning), a timeout or any error is replaced by the template with `meta.fallback: true` and one
+disqualified (untagged reasoning in 100% of replies). `llama3.2:3b` showed no reasoning leak. **Where D2
+stands for `llama3.2:3b` (r2 and r3, both results) is the block "D2, as at 2026-10-17" in
+`benchmarks/llm/README.md`; read it there, it is not paraphrased here.** The template is the
+deterministic safety net either way: every reply is post-processed, and
+one that would not ship (`app/generation/postprocess.py::would_ship`: not shippable in form, or
+untagged reasoning), a timeout or any error is replaced by the template with `meta.fallback: true` and one
 WARNING naming the reason (`not_usable`, `reasoning_leak`, `timeout` or the error type; never the
 student's text or the model's output). `meta.llm` is `ollama:llama3.2:3b` on every turn, including
 fallback turns. At startup a background warm-up loads the model (`keep_alive: 30m`); it never

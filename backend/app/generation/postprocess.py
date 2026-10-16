@@ -4,10 +4,12 @@ enforced AFTER generation, not merely requested.
 The format: Markdown, Java only in fenced blocks, and exactly one `**Check:**` line which is the
 final non-empty line (the frontend splits the check question out on that marker).
 
-The prompt ASKS (no headings, at most 60 words, a final Check line); this module GUARANTEES. Small
-models ignore instructions (llama3.2:3b opens with a heading and is cut off mid-sentence), and a
-broken reply must never reach the student: `would_ship` (usable AND no untagged reasoning) says
-whether a reply would ship, and the caller serves the template instead when it would not.
+The prompt ASKS (no headings, about 80 to 120 words, a final Check line); this module GUARANTEES only
+the FORM: no headings and exactly one final Check line. The word range is REQUESTED, not enforced
+(`num_predict` caps tokens; nothing counts words). Small models ignore instructions (llama3.2:3b opens
+with a heading and is cut off mid-sentence), and a broken reply must never reach the student:
+`would_ship` (usable in form AND no untagged reasoning) says whether a reply would ship, and the caller
+serves the template instead when it would not. "Shippable in form" is a format check, not accuracy.
 
 Known limits (not handled, by design): a plain "Check:" without the bold markers is not recognised
 (a second, bold check line is appended); a lone `</think>` with no opener cannot tell us what was

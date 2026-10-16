@@ -23,7 +23,7 @@ from app.topics import GENERAL, public_topics
 STRATEGY_INTENT = {
     "theory": "a precise definition plus the key rules, at beginner level",
     # The line ceiling lives in EXAMPLE_LIMIT below; stating a different one here would contradict it.
-    "example": "a short, correct Java example, then one or two sentences on what it shows",
+    "example": "a short, correct Java example, then a few sentences on what it shows",
     "simplified": "plain language, no jargon, small steps",
     "analogy": "a real-world analogy, mapped explicitly back to Java",
 }
@@ -35,10 +35,26 @@ FORMAT_INSTRUCTION = (
 # PROMPT REVISION r2 (S7b). The first benchmark showed llama3.2:3b ignoring a sentence-count limit
 # (a sentence count does not bound length) and opening every reply with a heading. Be concrete: a word
 # ceiling, no headings, and a required final line. One revision, applied to every model, then stop.
-PROMPT_REVISION = "r2"
+#
+# PROMPT REVISION r3 (owner decision 2026-10-16, backendPlan/15 section 0). The owner tested the tutor
+# and found the replies too short to be a good explanation. The r2 ceiling ("at most 60 words") plus a
+# hard cap of 110 tokens meant 69% of cycle-1 and 88% of cycle-2 replies stopped at the cap and were
+# trimmed (S10c). r3 asks for about 80 to 120 words (12 lines of Java for an example), raises the cap to
+# 220 tokens (LLM_MAX_TOKENS), and adds two instruction lines: answer what the student actually asked
+# (a "how super works" reply never mentioned `super`) and quiz them when they ask to be quizzed.
+# The word count is still REQUESTED, NOT ENFORCED: `num_predict` caps tokens; nothing counts words.
+# One revision, measured once against bars written beforehand; there is no r4.
+PROMPT_REVISION = "r3"
 NO_HEADINGS = "Do not use headings, titles or bold title lines."
-WORD_LIMIT = "Write at most 60 words of explanation."
-EXAMPLE_LIMIT = "Give at most 8 lines of Java code and at most 2 sentences about it."
+ANSWER_THE_QUESTION = (
+    "Answer what the student actually asked; if they name a Java keyword or concept, explain that one."
+)
+QUIZ_INSTRUCTION = (
+    "If the student asks you to quiz them or to ask them questions, ask two or three short questions "
+    "about the topic instead of explaining, and do not answer them."
+)
+WORD_LIMIT = "Write about 80 to 120 words of explanation."
+EXAMPLE_LIMIT = "Give at most 12 lines of Java code, then 2 to 4 sentences about what it shows."
 FINAL_LINE = "Your last line must be `**Check:**` followed by one short question for the student."
 NO_REPEAT_INSTRUCTION = "Do not repeat these explanations; use a different angle."
 
@@ -100,6 +116,8 @@ def build_prompt(
         f"Explanation cycle: {cycle}",
         EXAMPLE_LIMIT if strategy == "example" else WORD_LIMIT,
         NO_HEADINGS,
+        ANSWER_THE_QUESTION,
+        QUIZ_INSTRUCTION,
         FORMAT_INSTRUCTION,
         FINAL_LINE,
     ]

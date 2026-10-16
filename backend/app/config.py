@@ -28,23 +28,28 @@ class Settings(BaseSettings):
     WEAK_THRESHOLD: int = 3
 
     # Generation (S8, decision D2). Project owner's decision: the LLM is the default and the template is
-    # the deterministic safety net. Benchmarked in benchmarks/llm/SUMMARY.md: llama3.2:3b was usable in
-    # 88% of replies against a 90% bar (it did NOT meet the bar), so every reply that would not ship is
-    # replaced by the template (meta.fallback: true). An unknown value fails at startup.
+    # the deterministic safety net, so every reply that would not ship is replaced by the template
+    # (meta.fallback: true). Where D2 stands for llama3.2:3b (r2 and r3, both results, one criterion still
+    # unrated) is the block "D2, as at 2026-10-17" in benchmarks/llm/README.md; it is not paraphrased here.
+    # "Shippable in form" is a format check, not accuracy. An unknown value fails at startup.
     LLM_PROVIDER: Literal["template", "mock", "ollama"] = "ollama"
     # D2: qwen3:4b disqualified (100% untagged reasoning leak, qwen3_4b_2026-10-15_np80_r2.json and
     # qwen3_4b_2026-10-15_np110_r2.json); llama3.2:3b 0% leak (llama3.2_3b_2026-10-15_np110_r2.json).
     LLM_MODEL: str = "llama3.2:3b"
     # 127.0.0.1, not localhost: avoids an IPv6 lookup delay on Windows. Docker sets host.docker.internal.
     OLLAMA_URL: str = "http://127.0.0.1:11434"
-    # num_predict. Measured: 88% usable at 110 (llama3.2_3b_2026-10-15_np110_r2.json) against 81% at 80
-    # (llama3.2_3b_2026-10-15_np80_r2.json).
-    LLM_MAX_TOKENS: int = 110
-    # S8b: cycle-2 prompts (from `app/orchestrator.py` passing only the same strategy's priors) are
-    # LONGER than cycle-1 prompts and their measured p95 is the binding one. T = ceil(max(p95_cycle1,
-    # p95_cycle2_same) x 1.2) at num_predict 110: cycle-1 p95 11.0 s (llama3.2_3b_2026-10-15_np110_r2.json),
-    # cycle-2-same p95 14.6 s (llama3.2_3b_2026-10-15_np110_r2_c2same.json); max x 1.2 = 17.52, rounded up.
-    # Set from measurement, never from the 3-second latency figure (that is a measurement target).
+    # num_predict. r3, owner decision B, 2026-10-17: 220 (was 110 under r2). The owner found r2's replies too
+    # short; r3 asks for about 80 to 120 words and needs the room. Measured on the GPU
+    # (llama3.2_3b_2026-10-17_np220_r3.json and _c2same.json): 100% / 97.9% shippable in form, 33.3% / 39.6%
+    # of replies stopped at this cap (bar 6, cycle 1 <= 25%, MISSED), median shipped words 110 / 119, wall
+    # p95 5.87 s / 5.97 s. r2 at 110 (llama3.2_3b_2026-10-15_np110_r2.json): 87.5% shippable in form.
+    LLM_MAX_TOKENS: int = 220
+    # S8b (r2, 110 tokens, dGPU OFF): cycle-2 prompts (from `app/orchestrator.py` passing only the same
+    # strategy's priors) are LONGER than cycle-1 prompts and their measured p95 is the binding one.
+    # T = ceil(max(p95_cycle1, p95_cycle2_same) x 1.2): cycle-1 p95 11.0 s
+    # (llama3.2_3b_2026-10-15_np110_r2.json), cycle-2-same p95 14.6 s (..._np110_r2_c2same.json);
+    # max x 1.2 = 17.52, rounded up. NOT re-derived for r3 (lead ruling): it guards the dGPU-off case,
+    # and r3's GPU p95 is about 6 s. Never derive it from the 3-second latency figure.
     LLM_TIMEOUT_S: float = 18.0
 
     # Browser origins allowed to call this service (CORS). Decision D5 chose the `direct` transport: the

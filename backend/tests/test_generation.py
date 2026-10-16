@@ -341,12 +341,16 @@ def prompt(**over):
 
 
 def test_prompt_has_all_required_parts():
+    """Expected value history:
+      r2: "Write at most 60 words of explanation."  <- S7b prompt revision r2
+      r3: "Write about 80 to 120 words of explanation."  <- owner decision B, 2026-10-17 (backendPlan/15 section 0)
+    If this fails, decide: a regression, or a second intended change needing its own ruling."""
     p = prompt(cycle=1)
     assert "Topic: Loops" in p  # display label, not the slug
     assert STRATEGY_INTENT["analogy"] in p and "Strategy: analogy" in p
     assert "Explanation cycle: 1" in p
-    assert "two to four sentences" not in p  # r2: a word ceiling, not a sentence count
-    assert "Write at most 60 words of explanation." in p
+    assert "two to four sentences" not in p  # a word range, not a sentence count
+    assert "Write about 80 to 120 words of explanation." in p
     assert FORMAT_INSTRUCTION in p
     assert "Respond in Markdown. Put any Java code in fenced ```java code blocks. End with exactly one check question on its own line, beginning with `**Check:**`." in p
     assert "<student_message>\nI do not get it\n</student_message>" in p
@@ -615,25 +619,37 @@ def test_mock_adapter_matches_the_protocol_shape():
 
 
 def test_prompt_contains_the_three_new_instructions_verbatim():
+    """Expected value history:
+      r2: "Write at most 60 words of explanation."  <- S7b prompt revision r2
+      r3: "Write about 80 to 120 words of explanation."  <- owner decision B, 2026-10-17 (backendPlan/15 section 0)
+    If this fails, decide: a regression, or a second intended change needing its own ruling."""
     p = prompt(strategy="theory")
     assert "Do not use headings, titles or bold title lines." in p
-    assert "Write at most 60 words of explanation." in p
+    assert "Write about 80 to 120 words of explanation." in p
     assert "Your last line must be `**Check:**` followed by one short question for the student." in p
 
 
 def test_example_gets_its_own_ceiling_instead_of_the_word_limit():
+    """Expected value history:
+      r2: "Give at most 8 lines of Java code and at most 2 sentences about it."  <- S7b prompt revision r2
+      r3: "Give at most 12 lines of Java code, then 2 to 4 sentences about what it shows."  <- owner decision B, 2026-10-17 (backendPlan/15 section 0)
+    If this fails, decide: a regression, or a second intended change needing its own ruling."""
     p = prompt(strategy="example")
-    assert "Give at most 8 lines of Java code and at most 2 sentences about it." in p
-    assert "Write at most 60 words of explanation." not in p
-    assert "at most about 12 lines" not in p  # the intent must not contradict the 8-line ceiling
+    assert "Give at most 12 lines of Java code, then 2 to 4 sentences about what it shows." in p
+    assert "Write about 80 to 120 words of explanation." not in p
+    assert "one or two sentences" not in p  # the intent must not contradict the 2-to-4-sentence ceiling
 
 
 def test_the_old_length_wording_is_gone_and_everything_else_is_kept():
+    """Expected value history:
+      r2: PROMPT_REVISION == "r2"  <- S7b prompt revision r2
+      r3: PROMPT_REVISION == "r3"  <- owner decision B, 2026-10-17 (backendPlan/15 section 0)
+    If this fails, decide: a regression, or a second intended change needing its own ruling."""
     from app.generation.prompts import PROMPT_REVISION
 
     p = prompt(cycle=2, prior_explanations=["An earlier explanation."])
     assert "two to four sentences" not in p and "Length:" not in p
-    assert PROMPT_REVISION == "r2"
+    assert PROMPT_REVISION == "r3"
     assert FORMAT_INSTRUCTION in p  # the Markdown / fence instruction is kept
     assert "<student_message>" in p and "An earlier explanation." in p and "Explanation cycle: 2" in p
 
@@ -798,3 +814,28 @@ def test_usable_sentences_inside_code_or_the_check_line_do_not_count():
 
 def test_usable_judges_the_postprocessed_text_so_a_heading_plus_one_sentence_ships():
     assert usable(OBSERVED_CUT, "theory", truncated=True)
+
+
+# --- R3: the two new instruction lines ------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("strategy", STRATEGIES)
+def test_both_r3_instruction_lines_are_in_every_strategys_prompt(strategy):
+    from app.generation.prompts import ANSWER_THE_QUESTION, QUIZ_INSTRUCTION
+
+    p = prompt(strategy=strategy)
+    assert ANSWER_THE_QUESTION == "Answer what the student actually asked; if they name a Java keyword or concept, explain that one."
+    assert QUIZ_INSTRUCTION == (
+        "If the student asks you to quiz them or to ask them questions, ask two or three short questions "
+        "about the topic instead of explaining, and do not answer them."
+    )
+    assert ANSWER_THE_QUESTION in p and QUIZ_INSTRUCTION in p
+    assert p.index("Do not use headings") < p.index(ANSWER_THE_QUESTION) < p.index(QUIZ_INSTRUCTION)  # after NO_HEADINGS
+
+
+def test_the_students_text_still_sits_only_inside_the_delimited_block():
+    secret = "zebra-unique-student-phrase"
+    p = prompt(student_message=secret)
+    assert p.count(secret) == 1
+    assert f"<student_message>\n{secret}\n</student_message>" in p
+    assert p.index(secret) > p.index("<student_message>")
