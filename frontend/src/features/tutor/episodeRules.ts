@@ -21,7 +21,7 @@ import type { EpisodeUI, Phase } from './reducer';
  * `state` must be the episode as it was BEFORE any dispatch from this send: the
  * hook's captured value is stale by design, which is exactly why this decision
  * is made here from the topic rather than read off the captured fields. */
-export function turnInputFor(state: EpisodeUI, topic: string, message: string): TurnInput {
+export function turnInputFor(state: EpisodeUI, topic: string, message: string, thinking: boolean = false): TurnInput {
   const sameEpisode = topic === state.topic && state.phase !== 'closed';
   return {
     topic,
@@ -29,6 +29,7 @@ export function turnInputFor(state: EpisodeUI, topic: string, message: string): 
     history: sameEpisode ? state.history : [],
     state: sameEpisode ? state.serverState : null,
     profile: null,
+    thinking,
   };
 }
 

@@ -15,7 +15,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { METADATA_TIMEOUT_MS, TURN_TIMEOUT_MS, createTransport, loadTopics } from './adapter';
+import { METADATA_TIMEOUT_MS, THINKING_TURN_TIMEOUT_MS, TURN_TIMEOUT_MS, createTransport, loadTopics, turnTimeoutFor } from './adapter';
 import { TutorError } from './errors';
 import { createSendLatch, runExclusive } from '../episodeRules';
 import explainFixture from './fixtures/tutor-response.explain.json';
@@ -64,6 +64,28 @@ describe('budgets', () => {
     // corrupt the latency evidence it exists to collect.
     expect(TURN_TIMEOUT_MS).toBeGreaterThan(3_000);
     expect(METADATA_TIMEOUT_MS).toBeLessThan(TURN_TIMEOUT_MS);
+  });
+});
+
+describe('thinking turns', () => {
+  it('turnTimeoutFor: 30 s normally, 200 s when thinking', () => {
+    expect(turnTimeoutFor(turn())).toBe(30_000);
+    expect(turnTimeoutFor({ ...turn(), thinking: false })).toBe(30_000);
+    expect(turnTimeoutFor({ ...turn(), thinking: true })).toBe(200_000);
+    expect(THINKING_TURN_TIMEOUT_MS).toBe(200_000);
+  });
+
+  it('requests the long budget only for a thinking turn', async () => {
+    vi.stubGlobal('fetch', neverAnswers());
+    await createTransport('direct').sendTurn({ ...turn(), thinking: true }).catch(() => undefined);
+    expect(requestedBudgets).toEqual([THINKING_TURN_TIMEOUT_MS]);
+  });
+
+  it('the direct body carries thinking', async () => {
+    const fetchStub = vi.fn(async (_url: string, _init?: RequestInit) => new Response(JSON.stringify(explainFixture), { status: 200 }));
+    vi.stubGlobal('fetch', fetchStub);
+    await createTransport('direct').sendTurn({ ...turn(), thinking: true }).catch(() => undefined);
+    expect(JSON.parse(String(fetchStub.mock.calls[0]?.[1]?.body))).toMatchObject({ thinking: true });
   });
 });
 

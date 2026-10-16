@@ -11,6 +11,8 @@ export interface TurnInput {
   history: HistoryTurn[];
   state: TutorState | null;
   profile?: null;
+  /** Thinking mode (backend T1 field; a backend without it ignores it). */
+  thinking?: boolean;
 }
 
 export interface TutorTransport {
@@ -31,6 +33,14 @@ export type { MockFault };
  * corrupt the latency evidence. */
 export const METADATA_TIMEOUT_MS = 5_000;   // /topics, /health, /model-info — all have fallbacks, so fail fast
 export const TURN_TIMEOUT_MS = 30_000;      // /tutor/message — classify + LLM generation
+// Thinking turns take 1–3 minutes. Server LLM_THINKING_TIMEOUT_S is 180 s; the
+// extra 20 s is margin so the server's own answer (or 504) arrives before we give up.
+export const THINKING_TURN_TIMEOUT_MS = 200_000;
+
+/** The client budget for one turn: long only on the thinking path. */
+export function turnTimeoutFor(input: TurnInput): number {
+  return input.thinking ? THINKING_TURN_TIMEOUT_MS : TURN_TIMEOUT_MS;
+}
 
 function isTimeout(cause: unknown): boolean {
   return cause instanceof DOMException && cause.name === 'TimeoutError';
@@ -65,7 +75,7 @@ function liveTransport(mode: 'direct' | 'express'): TutorTransport {
       const body = mode === 'direct'
         ? { request_id: requestId, student_id: getStudentId(), session_id: getSessionId(), ...input, profile: null }
         : { topic: input.topic, message: input.message };
-      return request(`${base}/tutor/message`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }, (data) => parseTutorResponse(data, mode === 'direct' ? requestId : undefined), TURN_TIMEOUT_MS, 'llm_timeout');
+      return request(`${base}/tutor/message`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }, (data) => parseTutorResponse(data, mode === 'direct' ? requestId : undefined), turnTimeoutFor(input), 'llm_timeout');
     },
     health: () => request(`${base}/health`, {}, parseHealth),
     modelInfo: () => request(`${base}/model-info`, {}, parseModelInfo),

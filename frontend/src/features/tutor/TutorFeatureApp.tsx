@@ -1,4 +1,4 @@
-import { Fragment, lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import { DISPLAY_MAX_CYCLES, env } from './config/env';
@@ -11,6 +11,10 @@ import { SearchComposer } from './SearchComposer';
 import { useMicrophone } from './useMicrophone';
 import { useSpeechInput } from './useSpeechInput';
 import { inferTopic } from './inferTopic';
+import { BrainToggle } from './BrainToggle';
+import { formatElapsed, revealEnabled, TEXT_TICK_MS, TEXT_WORDS_PER_SECOND, VOICE_TICK_MS, VOICE_WORDS_PER_SECOND } from './reveal';
+import { prefersReducedMotion, useReveal } from './useReveal';
+import { QUESTION_TOP_OFFSET_PX, scrollTargetFor, shouldScrollToQuestion } from './scrollToQuestion';
 
 // Shader + LiveKit code is heavy; only fetch it the first time voice is opened.
 const VoiceAura = lazy(() => import('./VoiceAura'));
@@ -53,7 +57,7 @@ export function TutorFeatureApp() {
       {episode.healthStatus === 'unreachable' && <div className="flex items-center justify-between border-b border-red-300 bg-red-50 px-4 py-2 text-sm text-red-900" role="alert"><span>Can&rsquo;t reach the tutor service.</span><button className="rounded border border-red-400 px-2 py-1" onClick={episode.retryHealth}>Retry</button></div>}
       {episode.health && !episode.health.llm_reachable && <div className="border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900" role="status">Running with template responses.</div>}
       {episode.state.error?.kind === 'model_unavailable' && <div className="flex items-center justify-between border-b border-red-300 bg-red-50 px-4 py-2 text-sm text-red-900" role="alert"><span>Tutor service unavailable.</span><button className="rounded border border-red-400 px-2 py-1" onClick={episode.retryHealth}>Retry</button></div>}
-        <div className="flex min-h-0 flex-1 flex-col"><main className="tutor-main flex min-h-0 min-w-0 flex-1 flex-col" onClick={focusComposer}><Transcript episode={episode} voice={voiceOpen} /><SearchComposer topics={episode.topics} topic={topic} onTopicChange={episode.chooseTopic} onEngage={() => undefined} onDisengage={() => undefined} voiceActive={voiceOpen} voiceTrack={mic.track} onVoiceToggle={() => setVoiceOpen((value) => !value)} onVoiceClose={() => setVoiceOpen(false)} idle={episode.state.messages.length === 0} disabled={composerDisabled} sendDisabled={composerDisabled} draftOnFailure={episode.state.error ? [...episode.state.messages].reverse().find((m) => m.role === 'student' && m.failed)?.text ?? '' : ''} onSend={episode.send} /></main></div>
+        <div className="flex min-h-0 flex-1 flex-col"><main className="tutor-main flex min-h-0 min-w-0 flex-1 flex-col" onClick={focusComposer}><div className="flex shrink-0 justify-end px-3 pt-2"><BrainToggle on={episode.thinking} disabled={composerDisabled} onToggle={() => episode.setThinking(!episode.thinking)} /></div><Transcript episode={episode} voice={voiceOpen} /><SearchComposer topics={episode.topics} topic={topic} onTopicChange={episode.chooseTopic} onEngage={() => undefined} onDisengage={() => undefined} voiceActive={voiceOpen} voiceTrack={mic.track} onVoiceToggle={() => setVoiceOpen((value) => !value)} onVoiceClose={() => setVoiceOpen(false)} idle={episode.state.messages.length === 0} disabled={composerDisabled} sendDisabled={composerDisabled} draftOnFailure={episode.state.error ? [...episode.state.messages].reverse().find((m) => m.role === 'student' && m.failed)?.text ?? '' : ''} onSend={episode.send} /></main></div>
     </div>
   </div>;
 }
@@ -115,7 +119,7 @@ function VoicePanel({ open, track }: { open: boolean; track: LocalAudioTrack | n
 }
 
 function Transcript({ episode, voice }: { episode: ReturnType<typeof useEpisode>; voice: boolean }) {
-  const { state, send, reset } = episode;
+  const { state } = episode;
   // The welcome copy stays put until the first message is sent, then drifts up
   // and fades over 240ms. It stays mounted (out of flow) just long enough to
   // finish that exit.
@@ -129,38 +133,83 @@ function Transcript({ episode, voice }: { episode: ReturnType<typeof useEpisode>
     else exitTimer.current = window.setTimeout(() => setEmptyMounted(false), 240);
     return () => window.clearTimeout(exitTimer.current);
   }, [welcomeGone]);
-  if (voice) return <VoiceResponse state={state} />;
-  return <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-28 pt-6" aria-live="polite" aria-label="Tutoring conversation"><div className="relative mx-auto flex max-w-2xl flex-col gap-5">{(emptyMounted || !welcomeGone) && <div className={`tutor-empty-state ${welcomeGone ? 'tutor-empty-state-leaving' : ''}`}><EmptyState /></div>}{state.messages.map((message) => message.role === 'student' ? <StudentBubble key={message.id} message={message} /> : <TutorBubble key={message.id} message={message} />)}{state.phase === 'awaiting_tutor' && <PendingIndicator />}{state.phase === 'awaiting_cycle_decision' && <CycleOffer onSend={send} />}{state.phase === 'closed' && <div className="flex items-center justify-between rounded-lg border border-accent/30 bg-accent-soft px-4 py-3"><span className="text-sm">Episode complete.</span><button className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white" onClick={reset}>Start a new chat</button></div>}{state.error && state.error.kind !== 'model_unavailable' && <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900" role="alert"><p>{state.error.studentMessage}</p><p className="mt-2 text-xs">Your message is still available in the composer.</p></div>}</div></div>;
+  if (voice) return <VoiceResponse state={state} pendingThinking={episode.pendingThinking} />;
+  return <TextTranscript episode={episode} welcome={(emptyMounted || !welcomeGone) ? <div className={`tutor-empty-state ${welcomeGone ? 'tutor-empty-state-leaving' : ''}`}><EmptyState /></div> : null} />;
+}
+
+// Text mode: replies type out, and a new question scrolls to the top of the view.
+function TextTranscript({ episode, welcome }: { episode: ReturnType<typeof useEpisode>; welcome: React.ReactNode }) {
+  const { state, send, reset } = episode;
+  const scroller = useRef<HTMLDivElement>(null);
+  const exchange = useRef<HTMLDivElement>(null);
+  const messages = state.messages;
+  const lastStudentIndex = messages.map((m) => m.role).lastIndexOf('student');
+  const lastStudent = lastStudentIndex >= 0 ? messages[lastStudentIndex] : undefined;
+  const latestTutor = [...messages].reverse().find((m) => m.role === 'tutor');
+  const reveal = useReveal(latestTutor?.id, latestTutor?.text ?? '', { wordsPerSecond: TEXT_WORDS_PER_SECOND, tickMs: TEXT_TICK_MS, enabled: revealEnabled(prefersReducedMotion()) });
+  // The next send finishes a reveal still running.
+  const { finish } = reveal;
+  useEffect(() => { if (state.phase === 'awaiting_tutor') finish(); }, [state.phase, finish]);
+
+  // The question that was on screen when this view mounted never scrolls.
+  const handledQuestion = useRef(lastStudent?.id);
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    const block = exchange.current;
+    if (!lastStudent || lastStudent.id === handledQuestion.current || !el || !block) return;
+    handledQuestion.current = lastStudent.id;
+    block.style.minHeight = '0px';
+    if (!shouldScrollToQuestion(el.scrollHeight, el.clientHeight)) return;
+    // Room below the question, so it can reach the top even when little follows.
+    block.style.minHeight = `${el.clientHeight}px`;
+    const top = scrollTargetFor(block.offsetTop, parseFloat(getComputedStyle(el).paddingTop) || 0, QUESTION_TOP_OFFSET_PX);
+    el.scrollTo({ top, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+  }, [lastStudent?.id]);
+
+  const done = !reveal.revealing;
+  const startId = useRef(latestTutor?.id);
+  const finishedNewReply = latestTutor && done && latestTutor.id !== startId.current ? latestTutor : null;
+  const render = (message: (typeof messages)[number]) => message.role === 'student'
+    ? <StudentBubble key={message.id} message={message} />
+    : message.id === latestTutor?.id
+      ? <TutorBubble key={message.id} message={{ ...message, text: reveal.tokens.slice(0, reveal.shown).join('') }} revealing={reveal.revealing} onClick={reveal.finish} />
+      : <TutorBubble key={message.id} message={message} />;
+  const before = lastStudentIndex >= 0 ? messages.slice(0, lastStudentIndex) : messages;
+  const latest = lastStudentIndex >= 0 ? messages.slice(lastStudentIndex) : [];
+  const tail = <>
+    {state.phase === 'awaiting_tutor' && <PendingIndicator thinking={episode.pendingThinking} />}
+    {done && state.phase === 'awaiting_cycle_decision' && <CycleOffer onSend={send} />}
+    {done && state.phase === 'closed' && <div className="flex items-center justify-between rounded-lg border border-accent/30 bg-accent-soft px-4 py-3"><span className="text-sm">Episode complete.</span><button className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white" onClick={reset}>Start a new chat</button></div>}
+    {state.error && state.error.kind !== 'model_unavailable' && <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900" role="alert"><p>{state.error.studentMessage}</p><p className="mt-2 text-xs">Your message is still available in the composer.</p></div>}
+  </>;
+  // Not a live region: the text grows every tick. A separate polite region says
+  // "thinking" once, then reads the finished reply once.
+  return <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto px-4 pb-28 pt-6" aria-label="Tutoring conversation">
+    <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+      {state.phase === 'awaiting_tutor' ? (episode.pendingThinking ? 'The tutor is thinking deeply. This can take a few minutes.' : 'The tutor is thinking.') : finishedNewReply && <Markdown rehypePlugins={[rehypeHighlight]} key={finishedNewReply.id}>{finishedNewReply.text}</Markdown>}
+    </div>
+    <div className="relative mx-auto flex max-w-2xl flex-col gap-5">
+      {welcome}
+      {before.map(render)}
+      {latest.length > 0
+        ? <div ref={exchange} className="flex flex-col gap-5">{latest.map(render)}{tail}</div>
+        : tail}
+    </div>
+  </div>;
 }
 // Voice mode: the conversation area becomes the tutor's response area. Replies
 // from this voice session stack up, each separated from the previous one by a
 // divider, and the student can scroll back through them. The newest reply is
 // revealed word by word, as if spoken; one already on screen when voice mode
 // opened is shown in full. The view follows new text unless scrolled up.
-const REVEAL_WORDS_PER_SECOND = 6;
-function VoiceResponse({ state }: { state: ReturnType<typeof useEpisode>['state'] }) {
+function VoiceResponse({ state, pendingThinking }: { state: ReturnType<typeof useEpisode>['state']; pendingThinking: boolean }) {
   const tutorReplies = state.messages.filter((message) => message.role === 'tutor');
   const latest = tutorReplies.at(-1);
   // The reply on screen when voice mode opened is where this session starts.
   const startId = useRef(latest?.id);
   const startAt = startId.current ? Math.max(0, tutorReplies.findIndex((message) => message.id === startId.current)) : 0;
   const replies = tutorReplies.slice(startAt);
-  const words = latest ? latest.text.split(/(\s+)/) : [];
-  const total = words.length;
-  const seenReply = useRef(latest?.id);
-  const [shown, setShown] = useState(total);
-  useEffect(() => {
-    if (!latest || latest.id === seenReply.current) { setShown(total); return; }
-    setShown(0);
-    // The split keeps whitespace tokens, so one word is two tokens; ticks are 250ms.
-    const step = Math.max(2, Math.round((REVEAL_WORDS_PER_SECOND / 4) * 2));
-    const timer = window.setInterval(() => setShown((count) => {
-      if (count + step >= total) { window.clearInterval(timer); seenReply.current = latest.id; return total; }
-      return count + step;
-    }), 250);
-    return () => window.clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latest?.id]);
+  const { tokens: words, shown, revealing } = useReveal(latest?.id, latest?.text ?? '', { wordsPerSecond: VOICE_WORDS_PER_SECOND, tickMs: VOICE_TICK_MS, enabled: true });
 
   const scroller = useRef<HTMLDivElement>(null);
   const following = useRef(true);
@@ -177,18 +226,17 @@ function VoiceResponse({ state }: { state: ReturnType<typeof useEpisode>['state'
   // region would re-announce on every tick. So the scroller is NOT a live region,
   // the reply being revealed is aria-hidden, and a separate polite region says
   // "thinking" while waiting and then reads the finished reply exactly once.
-  const revealing = Boolean(latest) && shown < total;
   const finishedNewReply = latest && !revealing && latest.id !== startId.current ? latest : null;
   return <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto px-4 pb-28 pt-6" aria-label="Tutor response">
     <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
-      {state.phase === 'awaiting_tutor' ? 'The tutor is thinking.' : finishedNewReply && <Markdown rehypePlugins={[rehypeHighlight]} key={finishedNewReply.id}>{finishedNewReply.text}</Markdown>}
+      {state.phase === 'awaiting_tutor' ? (pendingThinking ? 'The tutor is thinking deeply. This can take a few minutes.' : 'The tutor is thinking.') : finishedNewReply && <Markdown rehypePlugins={[rehypeHighlight]} key={finishedNewReply.id}>{finishedNewReply.text}</Markdown>}
     </div>
     <div className="tutor-voice-response mx-auto max-w-2xl">
       {replies.map((reply, index) => <Fragment key={reply.id}>
         {index > 0 && <hr className="tutor-voice-divider" />}
         <div className="text-lg leading-relaxed" aria-hidden={reply.id === latest?.id && revealing ? true : undefined}><Markdown rehypePlugins={[rehypeHighlight]}>{reply.id === latest?.id ? words.slice(0, shown).join('') : reply.text}</Markdown></div>
       </Fragment>)}
-      {state.phase === 'awaiting_tutor' && <div aria-hidden="true">{replies.length > 0 && <hr className="tutor-voice-divider" />}<PendingIndicator /></div>}
+      {state.phase === 'awaiting_tutor' && <div aria-hidden="true">{replies.length > 0 && <hr className="tutor-voice-divider" />}<PendingIndicator thinking={pendingThinking} /></div>}
     </div>
   </div>;
 }
@@ -200,8 +248,20 @@ function StudentBubble({ message }: { message: { text: string; failed?: boolean;
     : <p className="whitespace-pre-wrap leading-relaxed">{message.text}</p>}</div>{message.failed && <span className="text-xs text-red-700">Not sent — edit or press Send to retry</span>}</article>;
 }
 // The tutor's reply is plain text on the page, not a chat bubble.
-function TutorBubble({ message }: { message: { text: string; strategy?: Strategy | null; trigger?: string | null; cycle?: number; fallback?: boolean } }) { const parts = message.text.split(/\n\s*\*\*Check:\*\*\s*/); return <article className="flex flex-col gap-2"><div className="tutor-reply max-w-none text-base leading-relaxed"><Markdown rehypePlugins={[rehypeHighlight]}>{parts[0]}</Markdown>{parts[1] && <div className="mt-3 border-t border-border-subtle pt-3 text-sm"><span aria-hidden="true" className="text-accent">❓ </span><span className="font-bold text-accent">Check:</span> {parts[1]}</div>}{message.fallback && <p className="mt-3 text-xs text-accent">template response</p>}</div>{message.strategy && message.trigger && <p className="font-mono text-xs text-ink-faint">{message.strategy} · {message.trigger} · cycle {message.cycle ?? 1}</p>}</article>; }
-function PendingIndicator() { return <div className="flex items-center gap-2 text-sm text-ink-muted"><span className="pending-dot" aria-hidden="true" />Thinking…</div>; }
+function TutorBubble({ message, revealing = false, onClick }: { message: { text: string; strategy?: Strategy | null; trigger?: string | null; cycle?: number; fallback?: boolean }; revealing?: boolean; onClick?: () => void }) { const parts = message.text.split(/\n\s*\*\*Check:\*\*\s*/); return <article className="flex flex-col gap-2" aria-hidden={revealing ? true : undefined} onClick={revealing ? onClick : undefined}><div className="tutor-reply max-w-none text-base leading-relaxed"><Markdown rehypePlugins={[rehypeHighlight]}>{parts[0]}</Markdown>{parts[1] && <div className="mt-3 border-t border-border-subtle pt-3 text-sm"><span aria-hidden="true" className="text-accent">❓ </span><span className="font-bold text-accent">Check:</span> {parts[1]}</div>}{!revealing && message.fallback && <p className="mt-3 text-xs text-accent">template response</p>}</div>{!revealing && message.strategy && message.trigger && <p className="font-mono text-xs text-ink-faint">{message.strategy} · {message.trigger} · cycle {message.cycle ?? 1}</p>}</article>; }
+function PendingIndicator({ thinking = false }: { thinking?: boolean }) {
+  // Mounted only while a reply is pending, so the counter starts at 0 per wait.
+  // The ticking text is aria-hidden: the polite region announces the wait once.
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!thinking) return;
+    const start = Date.now();
+    const timer = window.setInterval(() => setElapsed(Date.now() - start), 1000);
+    return () => window.clearInterval(timer);
+  }, [thinking]);
+  if (!thinking) return <div className="flex items-center gap-2 text-sm text-ink-muted"><span className="pending-dot" aria-hidden="true" />Thinking…</div>;
+  return <div className="flex flex-col gap-1 text-sm text-ink-muted" aria-hidden="true"><div className="flex items-center gap-2"><span className="pending-dot" />Thinking deeply… {formatElapsed(elapsed)}</div><p className="text-xs text-ink-faint">Thinking mode can take a few minutes.</p></div>;
+}
 function CycleOffer({ onSend }: { onSend: (message: string) => Promise<void> }) { return <div className="rounded-lg border border-accent/30 bg-accent-soft p-4"><p className="text-sm">{strings.cycleOffer}</p><div className="mt-3 flex flex-wrap gap-2"><button onClick={() => void onSend('yes')} className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white">Yes, explain it another way</button><button onClick={() => void onSend('no')} className="rounded-md border border-border-subtle bg-surface-raised px-3 py-2 text-sm">No, I’ll move on</button></div></div>; }
 
 function ResearchPanel({ episode }: { episode: ReturnType<typeof useEpisode> }) { const { state, health, fault, setFault } = episode; const response = state.lastResponse; const confusion = response?.confusion; const used = state.serverState?.strategies_used ?? []; const counted = used.filter((u) => u.trigger !== 'request'); const remaining = (['theory', 'example', 'simplified', 'analogy'] as Strategy[]).filter((s) => !used.some((u) => u.strategy === s)); const latency = response?.meta.latency_ms; return <aside className="tutor-research-sidebar shrink-0 overflow-y-auto px-3 py-4"><div className="tutor-research-sidebar-heading"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M4 19V5M4 19h17" /><path d="M8 16v-4M12 16V8M16 16v-7M20 16v-3" /></svg><h2>Research</h2><span>{env.mode}</span></div><div className="mt-4 flex flex-col gap-3 text-sm"><PanelCard title="Confusion"><div className="flex justify-between"><span>{confusion?.label ?? '—'}</span><span className="font-mono">{confusion ? confusion.probability.toFixed(2) : '—'}</span></div><div className="mt-1.5 h-1.5 rounded-full bg-border-subtle"><div className="h-full rounded-full bg-accent" style={{ width: `${(confusion?.probability ?? 0) * 100}%` }} /></div><p className="mt-1.5 font-mono text-xs text-ink-faint">source: {confusion?.source ?? '—'}</p></PanelCard><PanelCard title="Strategy"><p>{response?.strategy ? strategyLabels[response.strategy] : '—'}</p><p className="font-mono text-xs text-ink-faint">trigger: {response?.trigger ?? '—'}{response?.detected_request ? ` · requested: ${response.detected_request}` : ''}</p></PanelCard><PanelCard title={`Cycle ${state.serverState?.cycle ?? 1} of ${DISPLAY_MAX_CYCLES}`}><p className="text-xs text-ink-muted">Used ({counted.length})</p><p className="font-mono text-xs">{counted.map((u) => u.strategy).join(', ') || '—'}</p><p className="mt-1.5 text-xs text-ink-muted">Remaining</p><p className="font-mono text-xs">{remaining.join(', ') || '—'}</p></PanelCard><PanelCard title="Latency"><Row label="classify" value={latency ? `${latency.classify} ms` : '—'} /><Row label="llm" value={latency ? `${latency.llm} ms` : '—'} /><Row label="total" value={latency ? `${latency.total} ms` : '—'} />{latency && <p className="mt-2 text-right font-mono text-[10px] text-ink-faint">budget: 3000 ms</p>}</PanelCard><PanelCard title="Model"><p className="font-mono text-xs">{response?.meta.model_version ?? health?.model_version ?? '—'}</p><p className="font-mono text-xs text-ink-faint">{response?.meta.llm ?? '—'}</p>{response?.meta.fallback && <p className="mt-1 text-xs text-amber-700">template fallback</p>}</PanelCard>{state.episodeLog && <PanelCard title="Episode log"><div className="space-y-1 font-mono text-xs"><p>outcome: {state.episodeLog.outcome}</p><p>counted: {state.episodeLog.counted_strategies}</p><p>requested: {state.episodeLog.requested_strategies}</p><p>winning: {state.episodeLog.winning_strategy ?? '—'}</p><p>is_weak: {String(state.episodeLog.is_weak)}</p></div><details className="mt-2"><summary className="cursor-pointer text-xs text-ink-muted">View JSON</summary><pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-[10px]">{JSON.stringify(state.episodeLog, null, 2)}</pre></details></PanelCard>}{env.mode === 'mock' && <PanelCard title="Fault switch"><select value={fault} onChange={(e) => setFault(e.target.value as MockFault)} className="w-full rounded border border-border-subtle bg-surface px-2 py-1 text-xs" aria-label="Mock fault switch"><option value="none">None</option><option value="503">503 unavailable</option><option value="504">504 timeout</option><option value="fallback">Template fallback</option><option value="slow">Slow response</option><option value="malformed">Malformed payload</option></select></PanelCard>}</div></aside>; }
