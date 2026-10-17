@@ -84,10 +84,11 @@ button:not(:disabled):hover {
   transform: translateY(-1px);
 }
 
-.tutor-empty-star {
-  color: var(--accent);
-  font-size: 34px;
-  line-height: 1;
+/* The tutor's logo above "Ready to learn Java?" (public/chat-logo.png; 192 px source = sharp at 2x). */
+.tutor-empty-logo {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
 }
 
 .tutor-empty-title {

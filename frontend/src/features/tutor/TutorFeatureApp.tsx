@@ -16,6 +16,8 @@ import { formatElapsed, revealEnabled, TEXT_TICK_MS, TEXT_WORDS_PER_SECOND, VOIC
 import { prefersReducedMotion, useReveal } from './useReveal';
 import { QUESTION_TOP_OFFSET_PX, scrollTargetFor, shouldScrollToQuestion } from './scrollToQuestion';
 import { formatMs } from './formatMs';
+import type { StoredChat } from './chatStore';
+import type { TopicOption } from './api/types';
 
 // Shader + LiveKit code is heavy; only fetch it the first time voice is opened.
 const VoiceAura = lazy(() => import('./VoiceAura'));
@@ -49,7 +51,7 @@ export function TutorFeatureApp() {
     event.currentTarget.querySelector<HTMLTextAreaElement>('.tutor-composer textarea')?.focus();
   };
   return <div className="flex h-full min-h-screen flex-row bg-surface text-ink">
-    <TutorSidebar open={sidebarOpen} topic={topic} panelOpen={panelOpen} onTopicChange={episode.chooseTopic} onHome={() => { setPanelOpen(false); setSidebarOpen(true); }} onToggle={() => setSidebarOpen((value) => !value)} onNewTopic={() => episode.reset()} onResearch={() => { setPanelOpen((value) => !value); setSidebarOpen(false); }} onDemoChat={() => episode.chooseTopic('inheritance')} />
+    <TutorSidebar open={sidebarOpen} panelOpen={panelOpen} chats={episode.chats} currentChatId={episode.currentChatId} topics={episode.topics} onOpenChat={episode.openChat} onHome={() => { setPanelOpen(false); setSidebarOpen(true); }} onToggle={() => setSidebarOpen((value) => !value)} onNewTopic={() => episode.reset()} onResearch={() => { setPanelOpen((value) => !value); setSidebarOpen(false); }} />
       {panelOpen && <ResearchPanel episode={episode} />}
       <div className="flex min-w-0 flex-1 flex-col" onClick={() => { if (sidebarOpen) setSidebarOpen(false); }}>
       <VoicePanel open={voiceOpen} track={mic.track} />
@@ -63,17 +65,11 @@ export function TutorFeatureApp() {
   </div>;
 }
 
-function TutorSidebar({ open, topic, panelOpen, onTopicChange, onHome, onToggle, onNewTopic, onResearch, onDemoChat }: { open: boolean; topic: string; panelOpen: boolean; onTopicChange: (topic: string) => void; onHome: () => void; onToggle: () => void; onNewTopic: () => void; onResearch: () => void; onDemoChat: () => void }) {
+function TutorSidebar({ open, panelOpen, chats, currentChatId, topics, onOpenChat, onHome, onToggle, onNewTopic, onResearch }: { open: boolean; panelOpen: boolean; chats: StoredChat[]; currentChatId: string | null; topics: TopicOption[]; onOpenChat: (id: string) => void; onHome: () => void; onToggle: () => void; onNewTopic: () => void; onResearch: () => void }) {
   const [showMore, setShowMore] = useState(false);
-  const recentChats = [
-    ['inheritance', 'Understanding inheritance'],
-    ['loops', 'Why loops repeat'],
-    ['arrays', 'Working with arrays'],
-    ['classes_and_objects', 'Classes and objects'],
-    ['exception_handling', 'Handling exceptions'],
-    ['polymorphism', 'Polymorphism basics'],
-  ] as const;
-  const visibleChats = showMore ? recentChats : recentChats.slice(0, 5);
+  // The student's real chats, newest first (chatStore). Never a hard-coded list.
+  const visibleChats = showMore ? chats : chats.slice(0, 5);
+  const topicLabel = (id: string | null) => topics.find((t) => t.id === id)?.label ?? 'Java tutoring';
   return <aside className={`tutor-sidebar ${open ? 'tutor-sidebar-open' : 'tutor-sidebar-collapsed'}`} aria-label="Tutor navigation">
     <button type="button" className="tutor-sidebar-icon tutor-sidebar-home" onClick={onHome} aria-label="Home" title="Home">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3.5 10.5 8.5-7 8.5 7" /><path d="M5.5 9.5V20h13V9.5" /><path d="M9.5 20v-6h5v6" /></svg>
@@ -89,7 +85,7 @@ function TutorSidebar({ open, topic, panelOpen, onTopicChange, onHome, onToggle,
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h8" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z" /><path d="M14 6l3 3" /></svg>
       {open && <span>New chat</span>}
     </button>
-    {open && <div className="tutor-past-chats"><p className="tutor-sidebar-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M5 5h14v14H5z" /><path d="M9 9h6M9 13h4" /></svg><span>Recent</span></p>{visibleChats.map(([id, label]) => <button key={id} type="button" className={`tutor-past-chat ${topic === id ? 'tutor-past-chat-active' : ''}`} onClick={id === 'inheritance' ? onDemoChat : () => onTopicChange(id)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5v7a2.5 2.5 0 0 1-2.5 2.5H11l-4.5 3v-3.4a2.5 2.5 0 0 1-1.5-2.3z" /></svg><span><span className="tutor-past-chat-title">{label}</span><span className="tutor-past-chat-meta">Java tutoring</span></span></button>)}<button type="button" className="tutor-show-more" onClick={() => setShowMore((value) => !value)}>{showMore ? 'Show less' : 'Show more'}</button></div>}
+    {open && <div className="tutor-past-chats"><p className="tutor-sidebar-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M5 5h14v14H5z" /><path d="M9 9h6M9 13h4" /></svg><span>Recent</span></p>{chats.length === 0 && <p className="tutor-past-chat-meta px-3 py-1">No chats yet</p>}{visibleChats.map((chat) => <button key={chat.id} type="button" className={`tutor-past-chat ${chat.id === currentChatId ? 'tutor-past-chat-active' : ''}`} aria-current={chat.id === currentChatId ? 'true' : undefined} onClick={() => onOpenChat(chat.id)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5v7a2.5 2.5 0 0 1-2.5 2.5H11l-4.5 3v-3.4a2.5 2.5 0 0 1-1.5-2.3z" /></svg><span><span className="tutor-past-chat-title">{chat.title}</span><span className="tutor-past-chat-meta">{topicLabel(chat.topic)}</span></span></button>)}{chats.length > 5 && <button type="button" className="tutor-show-more" onClick={() => setShowMore((value) => !value)}>{showMore ? 'Show less' : 'Show more'}</button>}</div>}
     {!open && <div className="tutor-sidebar-collapsed-tools"><button type="button" className="tutor-sidebar-icon" onClick={onToggle} aria-label="Recent chats" title="Recent chats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M5 5h14v14H5z" /><path d="M9 9h6M9 13h4" /></svg></button></div>}
     <button type="button" className={`tutor-sidebar-icon tutor-sidebar-research ${panelOpen ? 'tutor-sidebar-research-active' : ''}`} onClick={onResearch} aria-pressed={panelOpen} aria-label="Research panel" title="Research panel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M4 19V5M4 19h17" /><path d="M8 16v-4M12 16V8M16 16v-7M20 16v-3" /></svg>{open && <span>Research</span>}</button>
     </div>
@@ -241,7 +237,7 @@ function VoiceResponse({ state, pendingThinking }: { state: ReturnType<typeof us
     </div>
   </div>;
 }
-function EmptyState() { return <div className="flex flex-col items-center px-6 py-16 text-center"><div className="tutor-empty-star mb-4" aria-hidden="true">✦</div><p className="tutor-empty-title">Ready to learn Java?</p><p className="mt-2 max-w-md text-base leading-6 text-ink-muted">Choose a topic below and ask a question in your own words. I’ll explain it step by step.</p></div>; }
+function EmptyState() { return <div className="flex flex-col items-center px-6 py-16 text-center"><img className="tutor-empty-logo mb-4" src="/chat-logo.png" alt="" width={96} height={96} /><p className="tutor-empty-title">Ready to learn Java?</p><p className="mt-2 max-w-md text-base leading-6 text-ink-muted">Choose a topic below and ask a question in your own words. I’ll explain it step by step.</p></div>; }
 function StudentBubble({ message }: { message: { text: string; failed?: boolean; voice?: boolean } }) {
   // Voice messages are shown as a generic placeholder, not the recognised text.
   return <article className="flex flex-col items-end gap-2">{!message.voice && <span className="sr-only">You said:</span>}<div className={`tutor-message tutor-message-student max-w-[85%] border px-4 py-3 ${message.failed ? 'tutor-message-failed' : 'border-[#f6d6df] bg-[#fdf4f7] text-ink'}`}>{message.voice

@@ -6,13 +6,25 @@ import type { TopicOption } from './api/types';
 import { FALLBACK_TOPICS } from './config/topics';
 import { effectiveThinking, env } from './config/env';
 import { episodeReducer, newEpisode } from './reducer';
+import { chatIdFor, loadStore, recordState, saveStore, type ChatStore } from './chatStore';
 import { createGenerationGuard, createSendLatch, GENERAL_TOPIC, probeHealth, resolveTurnTopic, runExclusive, turnInputFor, canSend, type HealthStatus } from './episodeRules';
 
 export { GENERAL_TOPIC };
 
 export function useEpisode() {
   const transport = useMemo(() => createTransport(), []);
-  const [state, dispatch] = useReducer(episodeReducer, null, () => newEpisode());
+  // Saved chats (chatStore): a reload reopens the most recent chat instead of an empty one.
+  const store = useRef<ChatStore | null>(null);
+  if (store.current === null) store.current = loadStore();
+  const [chats, setChats] = useState(() => store.current!.chats);
+  const [state, dispatch] = useReducer(episodeReducer, null, () => store.current!.chats[0]?.state ?? newEpisode());
+  useEffect(() => {
+    const next = recordState(store.current!, state, new Date().toISOString());
+    if (next === store.current) return;
+    store.current = next;
+    saveStore(next);
+    setChats(next.chats);
+  }, [state]);
   // Seeded, never empty: the send path reads this synchronously, so an empty
   // initial list would have forced it to wait for GET /topics (see
   // resolveTurnTopic). The fetched list replaces it when it arrives.
@@ -40,6 +52,13 @@ export function useEpisode() {
   const generation = useRef(createGenerationGuard());
   const chooseTopic = useCallback((topic: string) => { generation.current.bump(); dispatch({ type: 'TOPIC_CHANGED', topic }); }, []);
   const reset = useCallback(() => { generation.current.bump(); dispatch({ type: 'RESET' }); }, []);
+  // Reopen a saved chat. Bumping the generation drops any reply still in flight for the chat being left.
+  const openChat = useCallback((id: string) => {
+    const chat = store.current?.chats.find((c) => c.id === id);
+    if (!chat) return;
+    generation.current.bump();
+    dispatch({ type: 'RESTORE', state: chat.state });
+  }, []);
   const send = useCallback(async (message: string, options?: { voice?: boolean; topic?: string }) => {
     // A topic named in the message wins; otherwise the chosen one; otherwise a
     // general chat. Switching topic starts a fresh episode.
@@ -69,5 +88,5 @@ export function useEpisode() {
     });
   }, [state, transport, thinking]);
   const setFault = useCallback((next: MockFault) => { setMockFault(next); setFaultState(next); }, []);
-  return { state, thinking, setThinking, pendingThinking, topics, health, healthStatus, transport, fault, setFault, chooseTopic, send, retryHealth: checkHealth, reset };
+  return { state, thinking, setThinking, pendingThinking, topics, health, healthStatus, transport, fault, setFault, chooseTopic, send, retryHealth: checkHealth, reset, chats, currentChatId: chatIdFor(state), openChat };
 }
