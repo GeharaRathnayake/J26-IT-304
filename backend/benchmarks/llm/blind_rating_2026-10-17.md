@@ -12,7 +12,7 @@ A loop is a way to say "do this again" without writing the same lines many times
 
 **Check:** In that loop, what is the starting value of `i`?
 
-Rating (1-5): 
+Rating (1-5): 5
 
 ## R02: inheritance / theory
 
@@ -20,7 +20,7 @@ Inheritance lets one class, the subclass, reuse the fields and methods of anothe
 
 **Check:** In `class Dog extends Animal`, which class is the superclass?
 
-Rating (1-5): 
+Rating (1-5): 5
 
 ## R03: inheritance / analogy
 
@@ -47,7 +47,7 @@ public class LuxuryHouse extends House {
 
 **Check:** What does the `super` keyword do in the LuxuryHouse class?
 
-Rating (1-5): 
+Rating (1-5): 3
 
 ## R04: exception_handling / analogy
 
@@ -55,7 +55,7 @@ Exception handling is like a safety net under a trapeze artist: if something goe
 
 **Check:** What happens in this analogy if no net is set up?
 
-Rating (1-5): 
+Rating (1-5): 5
 
 ## R05: inheritance / simplified
 
@@ -63,7 +63,7 @@ Inheritance means one class borrows what another class already has. The class th
 
 **Check:** In `class Dog extends Animal`, which class is the child?
 
-Rating (1-5): 
+Rating (1-5): 5
 
 ## R06: loops / example
 
@@ -83,7 +83,7 @@ The loop starts with `i` at 1, prints a line, adds 1 to `i`, and stops when `i` 
 
 **Check:** What would change if the condition were `i <= 5`?
 
-Rating (1-5): 
+Rating (1-5): 5
 
 ## R07: loops / analogy
 
@@ -91,7 +91,7 @@ A loop is like running laps around a track: you keep going round until you have 
 
 **Check:** In this analogy, what does `lap++` correspond to?
 
-Rating (1-5): 
+Rating (1-5): 5
 
 ## R08: exception_handling / example
 
@@ -114,7 +114,7 @@ Dividing an `int` by zero throws an `ArithmeticException`, so the rest of the `t
 
 **Check:** Would the line `System.out.println(result);` run, and why or why not?
 
-Rating (1-5): 
+Rating (1-5): 5
 
 ## R09: exception_handling / example
 
@@ -134,7 +134,7 @@ This example demonstrates the use of a try-catch block in Java to handle excepti
 
 **Check:** Can you explain what the difference is between a compile-time exception and a runtime exception?
 
-Rating (1-5): 
+Rating (1-5): 2
 
 ## R10: loops / theory
 
@@ -157,7 +157,7 @@ while (i <= 10) {
 
 **Check:** Can you explain the difference between a for-each loop and a while loop?
 
-Rating (1-5): 
+Rating (1-5): 1
 
 ## R11: inheritance / simplified
 
@@ -167,7 +167,7 @@ For example, if we have a `Vehicle` class and a `Car` class, the `Car` class can
 
 **Check:** Which step of that explanation would you like me to go over again?
 
-Rating (1-5): 
+Rating (1-5): 2
 
 ## R12: loops / theory
 
@@ -175,7 +175,7 @@ A loop repeats a block of code. A `for` loop is used when you know how many time
 
 **Check:** How many times does the body of `for (int i = 0; i < 3; i++)` run?
 
-Rating (1-5): 
+Rating (1-5): 5
 
 ## R13: inheritance / theory
 
@@ -197,7 +197,7 @@ public class Dog extends Animal {
 
 **Check:** What is the term for the parent class in inheritance?
 
-Rating (1-5): 
+Rating (1-5): 1
 
 ## R14: exception_handling / simplified
 
@@ -223,7 +223,7 @@ try {
 
 **Check:** Which step of that explanation would you like me to go over again?
 
-Rating (1-5): 
+Rating (1-5): 2
 
 ## R15: loops / example
 
@@ -241,7 +241,7 @@ What is the difference between a `for` loop and a `while` loop in Java?
 
 **Check:** What do you think would happen if you changed one line of this example?
 
-Rating (1-5): 
+Rating (1-5): 2
 
 ## R16: loops / simplified
 
@@ -261,7 +261,7 @@ This code will print out the numbers 1, 2, 3, 4, and 5, one number per line.
 
 **Check:** Which step of that explanation would you like me to go over again?
 
-Rating (1-5): 
+Rating (1-5): 2
 
 ## R17: inheritance / example
 
@@ -284,7 +284,7 @@ The `super(name)` call runs the parent constructor first, so the inherited `name
 
 **Check:** What would happen if we removed the `super(name)` line?
 
-Rating (1-5): 
+Rating (1-5): 5
 
 ## R18: inheritance / analogy
 
@@ -292,7 +292,7 @@ Inheritance is like a family: a child inherits traits from a parent, such as eye
 
 **Check:** In this analogy, what does a trait the child has but the parent lacks correspond to in code?
 
-Rating (1-5): 
+Rating (1-5): 5
 
 ## R19: exception_handling / theory
 
@@ -300,7 +300,7 @@ An exception is an event that disrupts normal execution, such as dividing an int
 
 **Check:** When does the `catch` block run?
 
-Rating (1-5): 
+Rating (1-5): 5
 
 ## R20: exception_handling / theory
 
@@ -308,7 +308,7 @@ Exception handling in Java is a mechanism used to handle runtime errors and exce
 
 **Check:** In your own words, what is the main idea here?
 
-Rating (1-5): 
+Rating (1-5): 3
 
 ## R21: inheritance / example
 
@@ -347,7 +347,7 @@ This example shows inheritance in Java, where the `Dog` class extends the `Anima
 
 **Check:** Can you explain the difference between `public` and `private` access modifiers in Java?
 
-Rating (1-5): 
+Rating (1-5): 2
 
 ## R22: exception_handling / simplified
 
@@ -355,7 +355,7 @@ An exception is Java's way of saying that something went wrong while the program
 
 **Check:** Which keyword holds the code that might fail?
 
-Rating (1-5): 
+Rating (1-5): 5
 
 ## R23: exception_handling / analogy
 
@@ -363,7 +363,7 @@ Exception handling is like trying to catch a ball that someone has dropped. Imag
 
 **Check:** How would you map this comparison back to the Java code?
 
-Rating (1-5): 
+Rating (1-5): 2
 
 ## R24: loops / analogy
 
@@ -379,4 +379,4 @@ for (int i = 0; i < 10; i++) {
 
 **Check:** Can you explain what a `break` statement does in a loop?
 
-Rating (1-5): 
+Rating (1-5): 2
