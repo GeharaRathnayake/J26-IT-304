@@ -1,0 +1,62 @@
+# Commit IDs before -> after the 2026-10-17 history rewrite that removed Claude co-author trailers.
+# Owner instruction. File contents are identical on every branch; only commit messages (5) and IDs changed.
+old	new	subject
+ec074b8	54eb5aa	fix(frontend): seed topics so the send never waits on GET /topics
+3dcfaa6	28f616d	fix(frontend): abort stalled requests so no call can hang forever
+7309711	edb83c6	fix(frontend): ignore a response whose episode has been replaced
+aede2af	eb975ca	docs(frontend): record request budgets and the two fixed defects
+4a5681f	1c490ff	docs(frontend): refresh the guide for the latch fixes and state what is left
+ac21954	333330f	merge(frontend): review fixes, send-path hardening and request timeouts
+260c24a	8100d04	docs(repo): move workstream guides into Summary/
+e2de799	a6e3f5b	chore(notebooks): scaffold experiment1 with isolated conda env
+2187018	713cc46	feat(notebooks): load JavaQuestionSynthFinal at a pinned revision
+e46cd9e	d1cdd46	feat(notebooks): exploratory analysis of JavaQuestionSynthFinal
+8384c43	398d609	feat(notebooks): clean, dedupe and map labels
+4278da9	fd75572	feat(notebooks): group-aware split, trivial baselines and OOD probe set
+9e3cb4a	b952ce7	feat(notebooks): train and evaluate TF-IDF + LR baseline
+436328d	4843c47	refactor(notebooks): split the experiment into one notebook per stage
+2fc7a8b	0dfd2c1	feat(notebooks): feature inspection and OOD probe evaluation
+b379027	eae7bcc	feat(notebooks): sensitivity check with Partial Correct dropped
+d9c64dc	c32f990	feat(notebooks): publish clf-v1.0.0 artifact
+5db7ff7	dc384c7	feat(notebooks): error analysis and motivation for Experiment 2
+dbf5665	6cf1be1	feat(notebooks): headless train_baseline.py, summary notebook and final README
+80e4ce9	90b4fe1	docs(notebooks): Experiment 1 handover summary
+6ed535a	d4c4457	merge(notebooks): Experiment 1 baseline classifier and clf-v1.0.0
+4c8b890	eb802e4	docs(git): bring the section 9 log current
+0a37b32	88c5c3d	feat(backend): scaffold service, verified clf-v1.0.0 load, /health
+3839fce	1abe750	build(backend): build, test and serve the service in Docker
+220c0de	bed7207	feat(backend): serve on 127.0.0.1:8001 via python -m app
+33fcf0b	4a2b1d1	feat(backend): add rules-first hybrid classifier over clf-v1.0.0
+d23e7ab	664fce9	feat(backend): add /topics and validate /tutor/message requests
+0566f9e	31f29ff	feat(backend): add escalation engine and request detector
+5a10e25	2aaf81a	fix(backend): treat hedges as unclear when a new cycle is offered
+9880682	92e4151	feat(backend): build episode log by re-classifying student reactions
+220eb70	2c3a419	feat(backend): add generation layer with template replies and prompts
+7554414	98dcf13	feat(backend): wire POST /tutor/message end to end on templates
+37c4da9	3c4b4e1	feat(backend): add reproducible LLM benchmark and qwen3:4b results
+9df1c40	0439bc0	test(backend): add llama3.2:3b benchmark results
+38c648a	ad8e735	feat(backend): revise LLM prompt, harden post-processing, re-run D2
+58c815e	0aa9c93	feat(backend): add Ollama adapter, LLM default with template fallback
+2e27371	e0f15c2	feat(backend): cycle-2 prompts carry same-strategy priors; timeout 18 s
+21dd41c	8fc3152	feat(backend): add blind rating sheet for D2 criterion 5
+fe5fa20	531e263	feat(backend): add CORS, GET /model-info and compose project name
+f89f0fa	cd579db	feat(backend): Zod contract check on real responses, C2/C5 purity guard
+904701f	c205404	feat(backend): add cycle-2 template variants for the general topic
+3c10a70	5997285	feat(backend): S10b GPU placement on /health; S10r C3 wording docs
+eb91c42	1c63e6c	test(backend): re-run llama3.2:3b benchmark on GPU with placement
+e6d951c	7af3c81	test(backend): pin continuing after a resolved episode
+97c860c	cdd5885	fix(frontend): keep the conversation open after an episode ends
+ab92801	994fc86	feat(backend): R6 question guard, a question never resolves an episode
+0a1a892	59c0458	merge(backend): PP1 tutor service, S1 to R6
+a52578c	1799bfa	merge(frontend): keep the conversation open after an episode ends (SF1)
+4459fed	2890582	docs(git): log the backend stream, SF1 and both merges in section 9
+cb42018	f2ceeb0	feat(backend): R7, only a rule-matched understood resolves an episode
+4cd6790	1a025f2	feat(frontend): thinking toggle, typing reveal, question-to-top scroll
+4d0a2a2	f208fd4	feat(backend): ship prompt r3 as measured, 220 tokens, r3 blind sheet
+55a9240	e6a10a0	feat(backend): M1, the generator sees the current episode's earlier turns
+b02f291	c0c60bd	feat(backend): T1, opt-in thinking mode with qwen3:4b, uncapped, own 180 s timeout
+544d665	225a40f	feat(frontend): hide the thinking toggle unless VITE_SHOW_THINKING_TOGGLE is true
+a6adc18	d9f55fa	merge(backend): R7, r3 as measured, M1 episode memory, T1 thinking mode
+96aeb37	541974c	merge(frontend): thinking toggle (hidden by default), typing reveal, question-to-top scroll
+c3d9135	070a426	docs(git): log R7, F1, R3, M1, T1, F1b and both merges in section 9
+4aa6335	697a7d6	data(benchmarks): team lead's blind rating of the r3 sheet (D2 criterion 5) [rewrite gave 925888d; message then amended]
