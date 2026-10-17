@@ -22,6 +22,9 @@ Research-critical rules (each has dedicated tests):
  7. R6 (question guard, app/escalation/question_guard.py): an `understood` label on a QUESTION does
     not resolve the episode; the engine escalates instead and marks the decision
     `resolution_declined="question_guard"`.
+ 8. R7 (resolution guard, app/escalation/resolution_guard.py): only a RULE-matched `understood`
+    resolves; a model-sourced `understood` escalates and is marked
+    `resolution_declined="model_understood_not_trusted"`. R6 is checked first.
 
 `strategies_used` is cumulative for the whole episode and never cleared. The current cycle
 is DERIVED by counting, anchored on `state.cycle`: the current cycle's consumed slots are
@@ -41,6 +44,7 @@ from uuid import uuid4
 
 from app.escalation.question_guard import r6_applies
 from app.escalation.request_detector import detect_cycle_intent
+from app.escalation.resolution_guard import r7_applies
 from app.schemas import Strategy, StrategyUse, Trigger, TutorState
 
 Action = Literal["explain", "resolved", "offer_new_cycle", "end_unresolved", "clarify"]
@@ -76,7 +80,7 @@ class Decision:
     outcome: Outcome | None = None  # terminal actions only
     winning_strategy: Strategy | None = None  # last delivered strategy, on resolved only
     # Set only by R6: the label was `understood` but the message was a question, so the episode was not resolved.
-    resolution_declined: Literal["question_guard"] | None = None
+    resolution_declined: Literal["question_guard", "model_understood_not_trusted"] | None = None
 
 
 def default_episode_id() -> str:
@@ -209,11 +213,15 @@ def next_action(
     cfg: EngineConfig = EngineConfig(),
     new_episode_id: Callable[[], str] = default_episode_id,
     request_is_confusion: bool = False,
+    *,
+    label_source: Literal["rule", "model"],
 ) -> Decision:
     """Decide what the tutor does next. `state` is None on the first message of a topic.
 
     request_is_confusion: the caller says the RULE layer judged this message confused. See the
-    comment at the Tier 2 branch."""
+    comment at the Tier 2 branch.
+    label_source: where `label` came from, "rule" or "model". REQUIRED, no default (R7): only a
+    rule-sourced `understood` may resolve, so no caller may forget to say."""
     if label not in ("confused", "understood"):
         raise ValueError(f"unknown label: {label!r}")
     if request is not None and request not in _STRATEGIES:
@@ -254,6 +262,8 @@ def next_action(
     if label == "understood" and state.strategies_used:
         if r6_applies(label, message, request):  # R6: a question never resolves; escalate (or offer a new cycle)
             return replace(_deliver_next(state, cfg), resolution_declined="question_guard")
+        if r7_applies(label, label_source, message, request):  # R7 (after R6): a model-only understood is not trusted
+            return replace(_deliver_next(state, cfg), resolution_declined="model_understood_not_trusted")
         return Decision(
             "resolved", None, None, _with(state),
             outcome="resolved", winning_strategy=state.strategies_used[-1].strategy,

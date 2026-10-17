@@ -609,22 +609,30 @@ def test_summary_shows_before_and_after_rows_for_the_same_model(tmp_path):
 
 
 def test_num_predict_default_is_80_and_is_sent_and_recorded(tmp_path):
+    """Expected value history:
+      r2: file "*_np80_r2.json", prompt_revision "r2"  <- S7b prompt revision r2
+      r3: file "*_np80_r3.json", prompt_revision "r3"  <- owner decision B, 2026-10-17 (backendPlan/15 section 0)
+    If this fails, decide: a regression, or a second intended change needing its own ruling."""
     fake = FakeOllama()
     assert run_main(tmp_path, fake) == 0
     assert all(p["options"] == {"num_predict": 80} for p in fake.chat_payloads)
-    r = json.loads(next((tmp_path / "out").glob("qwen3_4b_*_np80_r2.json")).read_text(encoding="utf-8"))
+    r = json.loads(next((tmp_path / "out").glob("qwen3_4b_*_np80_r3.json")).read_text(encoding="utf-8"))
     assert r["num_predict"] == 80 and r["call_parameters"]["options"] == {"num_predict": 80}
-    assert r["prompt_revision"] == "r2" and len(r["prompt_set_sha256"]) == 64
+    assert r["prompt_revision"] == "r3" and len(r["prompt_set_sha256"]) == 64
 
 
 def test_num_predict_110_is_sent_recorded_and_named_in_the_file(tmp_path):
+    """Expected value history:
+      r2: file "*_np110_r2.json", SUMMARY label "@110 r2"  <- S7b prompt revision r2
+      r3: file "*_np110_r3.json", SUMMARY label "@110 r3"  <- owner decision B, 2026-10-17 (backendPlan/15 section 0)
+    If this fails, decide: a regression, or a second intended change needing its own ruling."""
     fake = FakeOllama()
     assert run_main(tmp_path, fake, "--num-predict", "110") == 0
     assert len(fake.chat_payloads) == 17 and all(p["options"] == {"num_predict": 110} for p in fake.chat_payloads)
-    path = next((tmp_path / "out").glob("qwen3_4b_*_np110_r2.json"))
+    path = next((tmp_path / "out").glob("qwen3_4b_*_np110_r3.json"))
     r = json.loads(path.read_text(encoding="utf-8"))
     assert r["num_predict"] == 110 and r["call_parameters"]["options"]["num_predict"] == 110
-    assert "@110 r2" in (tmp_path / "out" / "SUMMARY.md").read_text(encoding="utf-8")
+    assert "@110 r3" in (tmp_path / "out" / "SUMMARY.md").read_text(encoding="utf-8")
 
 
 def test_a_second_run_with_another_cap_never_overwrites_the_first_or_an_earlier_file(tmp_path):
@@ -643,9 +651,13 @@ def test_a_second_run_with_another_cap_never_overwrites_the_first_or_an_earlier_
 
 
 def test_the_shipped_text_in_the_result_is_post_processed_with_the_truncation_flag(tmp_path):
+    """Expected value history:
+      r2: result file "*_np80_r2.json"  <- S7b prompt revision r2
+      r3: result file "*_np80_r3.json"  <- owner decision B, 2026-10-17 (backendPlan/15 section 0)
+    If this fails, decide: a regression, or a second intended change needing its own ruling."""
     fake = FakeOllama(reply=LLAMA_STYLE, done_reason="length")
     assert run_main(tmp_path, fake) == 0
-    r = json.loads(next((tmp_path / "out").glob("*_np80_r2.json")).read_text(encoding="utf-8"))
+    r = json.loads(next((tmp_path / "out").glob("*_np80_r3.json")).read_text(encoding="utf-8"))
     g = r["generations"][0]
     assert g["raw_text"] == LLAMA_STYLE
     assert g["final_text"].startswith("Inheritance is a fundamental concept") and "key rules" not in g["final_text"]
@@ -700,12 +712,16 @@ def test_cycle_two_same_and_all_get_different_file_stems_and_label_the_summary(t
 
 
 def test_a_cycle_two_run_never_overwrites_the_cycle_one_file(tmp_path):
+    """Expected value history:
+      r2: cycle-1 file "*_np80_r2.json"  <- S8b cycle-2 stage, on prompt revision r2
+      r3: cycle-1 file "*_np80_r3.json"  <- owner decision B, 2026-10-17 (backendPlan/15 section 0)
+    If this fails, decide: a regression, or a second intended change needing its own ruling."""
     fake = FakeOllama()
     assert run_main(tmp_path, fake, runs="1") == 0
-    before = sorted(p.name for p in (tmp_path / "out").glob("qwen3_4b_*_np80_r2.json"))
+    before = sorted(p.name for p in (tmp_path / "out").glob("qwen3_4b_*_np80_r3.json"))
     assert len(before) == 1
     assert run_main(tmp_path, fake, "--cycle", "2", "--priors", "same", runs="1") == 0
-    after = sorted(p.name for p in (tmp_path / "out").glob("qwen3_4b_*_np80_r2.json"))
+    after = sorted(p.name for p in (tmp_path / "out").glob("qwen3_4b_*_np80_r3.json"))
     assert before == after  # the cycle-1 file is untouched; the cycle-2 run wrote a differently-named file
 
 
@@ -766,3 +782,13 @@ def test_the_benchmark_uses_the_services_gpu_fraction_not_a_copy():
     import app.generation.placement as placement_mod
 
     assert bench.gpu_fraction is placement_mod.gpu_fraction
+
+
+def test_the_benchmark_script_stamps_the_current_prompt_revision(tmp_path):
+    """The revision in the result file is the prompts.py constant, not a literal in the script."""
+    from app.generation.prompts import PROMPT_REVISION
+
+    assert PROMPT_REVISION == "r3"
+    assert run_main(tmp_path, FakeOllama()) == 0
+    r = json.loads(next((tmp_path / "out").glob("qwen3_4b_*_np80_*.json")).read_text(encoding="utf-8"))
+    assert r["prompt_revision"] == PROMPT_REVISION

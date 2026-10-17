@@ -55,17 +55,39 @@ def test_template_selection_has_12_items_one_per_pair():
 
 
 def test_the_item_that_fails_would_ship_is_included():
-    # the lead's finding: inheritance/example fails would_ship but must still appear, as-is
-    picked = bs.select_llm_items(_source_result())
-    assert ("inheritance", "example") in picked
-    from app.generation.postprocess import would_ship
+    """The rating judges what the model actually produced, not what the fallback hides: a reply that fails would_ship
+    must still appear on the sheet, as-is.
 
+    Expected value history:
+      r2: inheritance/example in the SOURCE file fails would_ship (source: the r2 file)  <- lead finding, S9 blind sheet
+      r3: no item in the r3 source fails would_ship, so the failing item is constructed in the test (a truncated example with no closed block)  <- owner decision B, 2026-10-17 (backendPlan/15 section 0)
+    If this fails, decide: a regression, or a second intended change needing its own ruling."""
+    from app.generation.postprocess import finalise, would_ship
+
+    result = _source_result()
     g = next(
-        g for g in _source_result()["generations"]
+        g for g in result["generations"]
         if g["run"] == 1 and g["topic"] == "inheritance" and g["strategy"] == "example"
     )
-    assert would_ship(g["raw_text"], g["strategy"], g["done_reason"] == "length") is False
+    # make the source's inheritance/example a truncated reply with no closed java block
+    g["raw_text"] = "Here is a short example.\n\n```java\nclass Dog extends Animal {\n    void bark() {"
+    g["done_reason"] = "length"
+    g["final_text"] = finalise(g["raw_text"], g["strategy"], truncated=True)
+    picked = bs.select_llm_items(result)
+    assert ("inheritance", "example") in picked
+    assert would_ship(g["raw_text"], g["strategy"], True) is False
     assert picked[("inheritance", "example")] == g["final_text"]
+
+
+def test_the_real_r3_source_ships_every_selected_item():
+    """Recorded fact about the r3 source (run 1, the three topics): all 12 items are shippable in form."""
+    from app.generation.postprocess import would_ship
+
+    picked = bs.select_llm_items(_source_result())
+    gens = {(g["topic"], g["strategy"]): g for g in _source_result()["generations"] if g["run"] == 1}
+    for key in picked:
+        g = gens[key]
+        assert would_ship(g["raw_text"], g["strategy"], g["done_reason"] == "length") is True, key
 
 
 def test_llm_selection_values_are_exactly_the_run_one_final_text():
@@ -336,3 +358,45 @@ def test_cli_score_on_a_complete_fake_sheet_gives_exit_0(tmp_path, capsys):
     code = bs.main(["score", str(sheet_path), str(key_path)])
     assert code == 0
     assert "criterion_5" in capsys.readouterr().out
+
+
+# --- R3: the r3 sheet's constants, and the void r2 files stay untouched ------------------------------------------
+
+import hashlib  # noqa: E402
+
+R2_SHEET = RESULTS_DIR / "blind_rating_2026-10-15.md"
+R2_KEY = RESULTS_DIR / "blind_key_2026-10-15.json"
+R2_SHEET_SHA256 = "312b9c9799feb85d397769ddbf9fea9af18e6292072c5fdc751ede4268e2340a"
+R2_KEY_SHA256 = "0b349c65444fbbfb1d33f04101871bbbf6e5ee9c458a3a41a49c5cd0bacbffb5"
+
+
+def test_the_blind_sheet_constants_are_the_r3_ones():
+    """Expected value history:
+      r2: SEED 20261015, SHEET_DATE 2026-10-15, SOURCE llama3.2_3b_2026-10-15_np110_r2.json  <- S9 blind sheet
+      r3: SEED 20261017, SHEET_DATE 2026-10-17, SOURCE llama3.2_3b_2026-10-17_np220_r3.json  <- owner decision B, 2026-10-17 (backendPlan/15 section 0)
+    If this fails, decide: a regression, or a second intended change needing its own ruling."""
+    assert bs.SEED == 20261017
+    assert bs.SHEET_DATE == "2026-10-17"
+    assert bs.SOURCE_FILE == "llama3.2_3b_2026-10-17_np220_r3.json"
+    assert bs.SHEET_NAME == "blind_rating_2026-10-17.md" and bs.KEY_NAME == "blind_key_2026-10-17.json"
+
+
+def test_building_the_r3_sheet_never_touches_the_void_r2_sheet_and_key(tmp_path):
+    before = (hashlib.sha256(R2_SHEET.read_bytes()).hexdigest(), hashlib.sha256(R2_KEY.read_bytes()).hexdigest())
+    assert before == (R2_SHEET_SHA256, R2_KEY_SHA256)  # the void r2 files are exactly as committed
+    # an output directory that ALREADY holds the r2 sheet and key, and --force: the worst case. If the builder
+    # wrote under the r2 names it would overwrite them here.
+    import shutil
+
+    shutil.copy(R2_SHEET, tmp_path / R2_SHEET.name)
+    shutil.copy(R2_KEY, tmp_path / R2_KEY.name)
+    assert bs.main(["build", "--out", str(tmp_path), "--results-dir", str(RESULTS_DIR), "--force"]) == 0
+    assert (tmp_path / "blind_rating_2026-10-17.md").exists() and (tmp_path / "blind_key_2026-10-17.json").exists()
+    assert (hashlib.sha256((tmp_path / R2_SHEET.name).read_bytes()).hexdigest(),
+            hashlib.sha256((tmp_path / R2_KEY.name).read_bytes()).hexdigest()) == before
+    after = (hashlib.sha256(R2_SHEET.read_bytes()).hexdigest(), hashlib.sha256(R2_KEY.read_bytes()).hexdigest())
+    assert after == before  # and the real r2 files were never written either
+
+
+def test_the_default_output_names_cannot_collide_with_the_r2_names():
+    assert bs.SHEET_NAME != R2_SHEET.name and bs.KEY_NAME != R2_KEY.name

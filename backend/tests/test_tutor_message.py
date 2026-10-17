@@ -112,7 +112,7 @@ def test_full_episode_over_http_on_inheritance(client):
     explain_fx, resolved_fx = fixture("tutor-response.explain.json"), fixture("tutor-response.resolved.json")
     for r in res:
         assert set(r) == set(explain_fx) == set(resolved_fx)
-        assert set(r["meta"]) - {"fallback", "resolution_declined"} == set(explain_fx["meta"])  # fallback (optional) and R6's additive field
+        assert set(r["meta"]) - {"fallback", "resolution_declined", "thinking"} == set(explain_fx["meta"])  # fallback (optional) and the additive R6 / T1 fields
         assert set(r["meta"]["latency_ms"]) == set(explain_fx["meta"]["latency_ms"])
         assert set(r["updated_state"]) == set(explain_fx["updated_state"]) == STATE_KEYS
         assert set(r["confusion"]) == set(explain_fx["confusion"])
@@ -644,12 +644,16 @@ def test_unknown_llm_provider_from_the_environment_fails_too(monkeypatch):
 
 
 def test_settings_defaults(monkeypatch):
+    """Expected value history:
+      r2: LLM_MAX_TOKENS 110  <- S8 / S7b, r2 cap
+      r3: LLM_MAX_TOKENS 220  <- owner decision B, 2026-10-17 (backendPlan/15 section 0)
+    If this fails, decide: a regression, or a second intended change needing its own ruling."""
     # The project owner's decision (D2): the LLM is the default provider, the template the safety net.
     for var in ("LLM_PROVIDER", "LLM_MODEL", "OLLAMA_URL", "LLM_MAX_TOKENS", "LLM_TIMEOUT_S", "TURN_LOG_PATH"):
         monkeypatch.delenv(var, raising=False)
     s = Settings(_env_file=None)
     assert (s.LLM_PROVIDER, s.LLM_MODEL, s.LLM_MAX_TOKENS, s.LLM_TIMEOUT_S, s.TURN_LOG_PATH) == (
-        "ollama", "llama3.2:3b", 110, 18.0, None
+        "ollama", "llama3.2:3b", 220, 18.0, None
     )
     assert s.OLLAMA_URL == "http://127.0.0.1:11434"  # 127.0.0.1, not localhost (IPv6 lookup delay on Windows)
 
@@ -668,7 +672,7 @@ def test_a_broken_template_file_fails_startup_loudly(tmp_path, monkeypatch):
 TURN_KEYS = {
     "ts", "episode_id", "student_id", "topic", "message", "preceding_tutor_turn", "label", "probability",
     "source", "matched_phrase", "model_label", "disagreement", "detected_request", "action", "strategy",
-    "trigger", "cycle", "question_guard",
+    "trigger", "cycle", "question_guard", "model_understood_guard", "thinking",
 }
 
 

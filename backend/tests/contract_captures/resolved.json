@@ -128,6 +128,7 @@
       "total": 0.0
     },
     "fallback": true,
-    "resolution_declined": null
+    "resolution_declined": null,
+    "thinking": false
   }
 }

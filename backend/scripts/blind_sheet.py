@@ -30,9 +30,13 @@ from app.generation.adapters import TemplateFallback  # noqa: E402
 from app.generation.postprocess import finalise  # noqa: E402
 
 # Pre-registered. Do not pick another seed after seeing an ordering.
-SEED = 20261015
-SHEET_DATE = "2026-10-15"  # fixed: part of the committed filenames, not a generation timestamp
-SOURCE_FILE = "llama3.2_3b_2026-10-15_np110_r2.json"
+# r3 (2026-10-17, R3 rework 1): a NEW sheet, built from the r3 replies, with a new seed. The r2 sheet
+# (seed 20261015, source llama3.2_3b_2026-10-15_np110_r2.json, files blind_rating_2026-10-15.md and
+# blind_key_2026-10-15.json) is VOID: it was built from r2, which no longer ships. Those files stay on disk,
+# unedited; the new dated names below cannot overwrite them.
+SEED = 20261017
+SHEET_DATE = "2026-10-17"  # fixed: part of the committed filenames, not a generation timestamp
+SOURCE_FILE = "llama3.2_3b_2026-10-17_np220_r3.json"
 TOPICS = ("inheritance", "loops", "exception_handling")
 STRATEGIES = ("theory", "example", "simplified", "analogy")
 DEFAULT_RESULTS_DIR = Path("benchmarks/llm")

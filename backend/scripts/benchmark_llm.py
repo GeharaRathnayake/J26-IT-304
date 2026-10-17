@@ -242,7 +242,7 @@ def rating_sheet(model: str, run_date: str, generations: list[dict]) -> str:
             g["raw_text"],
             "~~~~",
             "",
-            "Shipped (post-processed; what the student sees if it is usable, otherwise the template is served):",
+            "Shipped (post-processed; what the student sees if it is shippable in form, otherwise the template is served):",
             "",
             "~~~~markdown",
             g["final_text"],

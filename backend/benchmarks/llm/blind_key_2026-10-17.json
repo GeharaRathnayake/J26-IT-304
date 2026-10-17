@@ -1,0 +1,30 @@
+{
+  "seed": 20261017,
+  "source": "llama3.2_3b_2026-10-17_np220_r3.json",
+  "items": {
+    "R01": "template",
+    "R02": "template",
+    "R03": "llm",
+    "R04": "template",
+    "R05": "template",
+    "R06": "template",
+    "R07": "template",
+    "R08": "template",
+    "R09": "llm",
+    "R10": "llm",
+    "R11": "llm",
+    "R12": "template",
+    "R13": "llm",
+    "R14": "llm",
+    "R15": "llm",
+    "R16": "llm",
+    "R17": "template",
+    "R18": "template",
+    "R19": "template",
+    "R20": "llm",
+    "R21": "llm",
+    "R22": "template",
+    "R23": "llm",
+    "R24": "llm"
+  }
+}

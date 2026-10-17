@@ -39,11 +39,17 @@ COPY --chown=tutor:tutor tests ./tests
 COPY --chown=tutor:tutor scripts ./scripts
 # the compose project name is asserted by tests/test_cors_and_model_info.py; test stage only
 COPY --chown=tutor:tutor compose.yaml ./compose.yaml
+# the wording guard (tests/test_wording_guard.py) reads the service README; test stage only
+COPY --chown=tutor:tutor README.md ./README.md
 # only the README (a test checks it records the one-revision rule), plus the one result file the
 # blind rating sheet is built from (tests/test_blind_sheet.py); the rest of benchmarks/llm/ stays
 # out of the image
 COPY --chown=tutor:tutor benchmarks/llm/README.md ./benchmarks/llm/README.md
 COPY --chown=tutor:tutor benchmarks/llm/llama3.2_3b_2026-10-15_np110_r2.json ./benchmarks/llm/llama3.2_3b_2026-10-15_np110_r2.json
+# R3: the source of the r3 blind sheet, and the void r2 sheet and key (tests prove building r3 leaves them untouched)
+COPY --chown=tutor:tutor benchmarks/llm/llama3.2_3b_2026-10-17_np220_r3.json ./benchmarks/llm/llama3.2_3b_2026-10-17_np220_r3.json
+COPY --chown=tutor:tutor benchmarks/llm/blind_rating_2026-10-15.md ./benchmarks/llm/blind_rating_2026-10-15.md
+COPY --chown=tutor:tutor benchmarks/llm/blind_key_2026-10-15.json ./benchmarks/llm/blind_key_2026-10-15.json
 # Tests build their own temp copies; the image's models/ is never modified.
 RUN chown tutor:tutor /srv/backend
 USER tutor
