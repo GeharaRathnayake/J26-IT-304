@@ -84,10 +84,11 @@ button:not(:disabled):hover {
   transform: translateY(-1px);
 }
 
-.tutor-empty-star {
-  color: var(--accent);
-  font-size: 34px;
-  line-height: 1;
+/* The tutor's logo above "Ready to learn Java?" (public/chat-logo.png; 192 px source = sharp at 2x). */
+.tutor-empty-logo {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
 }
 
 .tutor-empty-title {
@@ -541,6 +542,16 @@ button:not(:disabled):hover {
   display: none;
 }
 
+/* Scrolls, but shows no scrollbar (research panel and its JSON view). */
+.tutor-scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.tutor-scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
 .tutor-topic-option {
   width: 100%;
   border: 0;
@@ -639,6 +650,16 @@ button:not(:disabled):hover {
   border-bottom-right-radius: 5px;
   background: #e8f2f8 !important;
   border-color: #d2e3ee !important;
+  /* A long unbroken word (a pasted URL, "aaaa…") wraps inside the bubble instead of
+     running off-screen: break-word alone only breaks at spaces. */
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+/* The same for prose in the tutor's reply (code blocks keep their own scroll). */
+.tutor-reply p,
+.tutor-reply li {
+  overflow-wrap: anywhere;
 }
 
 /* Failed send: the light error treatment used by the other error surfaces

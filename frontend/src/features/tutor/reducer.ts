@@ -10,7 +10,8 @@ export type EpisodeAction =
   | { type: 'SEND_STARTED'; message: string; id: string; voice?: boolean }
   | { type: 'SEND_SUCCEEDED'; response: TutorResponse; tutorId: string }
   | { type: 'SEND_FAILED'; error: TutorError }
-  | { type: 'RESET' };
+  | { type: 'RESET' }
+  | { type: 'RESTORE'; state: EpisodeUI };
 
 export function phaseFromResponse(response: TutorResponse): Phase {
   if (response.action === 'resolved' || response.action === 'end_unresolved') return 'closed';
@@ -43,5 +44,8 @@ export function episodeReducer(state: EpisodeUI, action: EpisodeAction): Episode
     }
     case 'SEND_FAILED': return { ...state, phase: state.serverState?.awaiting_cycle_confirmation ? 'awaiting_cycle_decision' : state.serverState || state.topic ? 'awaiting_student' : 'idle', error: action.error, messages: state.messages.map((m) => m.id === state.messages.at(-1)?.id && m.role === 'student' ? { ...m, failed: true } : m) };
     case 'RESET': return newEpisode();
+    // A saved chat (chatStore) replaces the whole state: messages, history and the server state, so
+    // the next send continues that chat's episode exactly where it stopped.
+    case 'RESTORE': return action.state;
   }
 }
