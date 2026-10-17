@@ -36,6 +36,21 @@ describe('turnInputFor (F1)', () => {
   });
 });
 
+describe('thinking (F1 frontend)', () => {
+  it('turnInputFor passes thinking through, and defaults to false', () => {
+    const episode = loopsEpisodeWithHistory();
+    expect(turnInputFor(episode, 'loops', 'next', true).thinking).toBe(true);
+    expect(turnInputFor(episode, 'loops', 'next').thinking).toBe(false);
+  });
+
+  it('a new episode still carries no history or state when thinking', () => {
+    const input = turnInputFor(loopsEpisodeWithHistory(), 'arrays', 'and arrays?', true);
+    expect(input.history).toEqual([]);
+    expect(input.state).toBeNull();
+    expect(input.thinking).toBe(true);
+  });
+});
+
 describe('send latch (F2)', () => {
   it('lets only one of two same-tick calls through', async () => {
     const latch = createSendLatch();

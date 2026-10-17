@@ -4,6 +4,7 @@ import { TutorError } from './api/errors';
 import { getMockFault, setMockFault, type MockFault } from './api/mockTransport';
 import type { TopicOption } from './api/types';
 import { FALLBACK_TOPICS } from './config/topics';
+import { effectiveThinking, env } from './config/env';
 import { episodeReducer, newEpisode } from './reducer';
 import { createGenerationGuard, createSendLatch, GENERAL_TOPIC, probeHealth, resolveTurnTopic, runExclusive, turnInputFor, canSend, type HealthStatus } from './episodeRules';
 
@@ -19,6 +20,10 @@ export function useEpisode() {
   const loadedTopics = useRef<TopicOption[]>([...FALLBACK_TOPICS]);
   const [health, setHealth] = useState<Awaited<ReturnType<TutorTransport['health']>> | null>(null);
   const [healthStatus, setHealthStatus] = useState<HealthStatus>('checking');
+  // Thinking mode belongs to the conversation: it survives new episodes and resets on reload.
+  const [thinking, setThinking] = useState(false);
+  // Whether the reply now pending was asked for in thinking mode (the toggle is locked meanwhile).
+  const [pendingThinking, setPendingThinking] = useState(false);
   const [fault, setFaultState] = useState<MockFault>(getMockFault());
   const checkHealth = useCallback(() => {
     setHealthStatus('checking');
@@ -47,10 +52,12 @@ export function useEpisode() {
       // generation token is captured after it, so this send is not its own victim.
       if (topic !== state.topic) { generation.current.bump(); dispatch({ type: 'TOPIC_CHANGED', topic }); }
       const sendGeneration = generation.current.current();
+      const askThinking = effectiveThinking(thinking, env.showThinkingToggle);
+      setPendingThinking(askThinking);
       const id = crypto.randomUUID();
       dispatch({ type: 'SEND_STARTED', message, id, voice: options?.voice });
       try {
-        const response = await transport.sendTurn(turnInputFor(state, topic, message));
+        const response = await transport.sendTurn(turnInputFor(state, topic, message, askThinking));
         if (generation.current.isStale(sendGeneration)) return;
         dispatch({ type: 'SEND_SUCCEEDED', response, tutorId: crypto.randomUUID() });
       } catch (error) {
@@ -60,7 +67,7 @@ export function useEpisode() {
         dispatch({ type: 'SEND_FAILED', error: tutorError });
       }
     });
-  }, [state, transport]);
+  }, [state, transport, thinking]);
   const setFault = useCallback((next: MockFault) => { setMockFault(next); setFaultState(next); }, []);
-  return { state, topics, health, healthStatus, transport, fault, setFault, chooseTopic, send, retryHealth: checkHealth, reset };
+  return { state, thinking, setThinking, pendingThinking, topics, health, healthStatus, transport, fault, setFault, chooseTopic, send, retryHealth: checkHealth, reset };
 }
