@@ -100,6 +100,9 @@ detector), decides the next move with the escalation engine, and returns a full 
 | `OLLAMA_URL` | `http://127.0.0.1:11434` | `127.0.0.1`, not `localhost` (an IPv6 lookup delay on Windows). Docker sets `http://host.docker.internal:11434`. |
 | `LLM_MAX_TOKENS` | `220` | `num_predict`. r3, owner decision B (2026-10-17): 220 (r2 used 110). On the GPU, r3 was 100% / 97.9% shippable in form (cycle 1 / cycle 2), with 33.3% / 39.6% of replies stopped at this cap and wall p95 about 6 s (see "The LLM and its safety net" and `benchmarks/llm/README.md`). r2 at 110 was 87.5% shippable in form. |
 | `LLM_TIMEOUT_S` | `18.0` | Cutoff for a generation call: `ceil(max(p95_cycle1, p95_cycle2_same) × 1.2)` at r2's 110 tokens (dGPU off) = `ceil(max(11.0, 14.6) × 1.2)` (S8b; see `benchmarks/llm/README.md`). Not re-derived for r3 (lead ruling): it guards the dGPU-off case, and r3's GPU p95 is about 6 s. Never derive it from the 3 s latency target. |
+| `LLM_THINKING_MODEL` | `qwen3:4b` | Thinking mode only (T1, opt-in per request): the model used when a turn is sent with `thinking: true`. |
+| `LLM_THINKING_TIMEOUT_S` | `180.0` | Thinking mode only: the probe's uncapped 120 s x 1.5. Separate from `LLM_TIMEOUT_S`, which stays 18 s and is not re-derived. Must be > 0. |
+| `LLM_THINKING_KEEP_ALIVE` | `10m` | Thinking mode only: how long Ollama keeps the thinking model loaded. An Ollama duration (`10m`, `30s`, `1h`), `0` or `-1`. |
 | `TURN_LOG_PATH` | unset | Opt-in per-turn research log (see below). |
 | `WEAK_THRESHOLD` | `3` | `is_weak` when counted strategies reach this or the episode ends unresolved. |
 | `MAX_CYCLES` | `2` | Explanation cycles per episode. |
@@ -116,6 +119,26 @@ WARNING naming the reason (`not_usable`, `reasoning_leak`, `timeout` or the erro
 student's text or the model's output). `meta.llm` is `ollama:llama3.2:3b` on every turn, including
 fallback turns. At startup a background warm-up loads the model (`keep_alive: 30m`); it never
 blocks or fails startup. With Ollama stopped the service still answers every turn, with templates.
+
+**Thinking mode (T1): opt-in, off by default, slow by design.** A request may carry `"thinking": true`
+(additive; an old frontend that never sends it gets `false`, and a non-boolean is a 422). Such a turn is generated
+by `LLM_THINKING_MODEL` (`qwen3:4b`) with `think: true` and **no token cap**, under its **own** timeout
+`LLM_THINKING_TIMEOUT_S` (180 s) and `LLM_THINKING_KEEP_ALIVE` (10m), using the same prompt (r3 plus the M1
+conversation block) and the same shippable-in-form gate. **Slow by design: 1 to 2+ minutes per reply on this
+GPU.** The probe (`benchmarks/llm/thinking_probe/`, backend lead, 2026-10-16, with the **r2** prompt): capped at
+1500 tokens, 0 of 5 answered (the whole budget went on thinking, 39.8 to 45.6 s each); uncapped, 4,229 tokens,
+119.9 s, then a correct 35-word reply (n = 1: **thinking mode's accuracy is not measured**, and nothing here
+claims it is more accurate). The template fallback still applies: a thinking turn that times out or is not
+shippable in form serves the template with `meta.fallback: true`. `meta.thinking` is true iff the turn was
+requested with thinking, and `meta.llm` names the model that was asked (`ollama:qwen3:4b`), so the two flags
+together say what the student got. **The thinking text is discarded**: never returned, logged, put in the turn
+log or the episode log, or put in an error message. The thinking model is not warmed at startup (it would compete
+for VRAM with the default model); the first thinking turn pays the load. The classifier still sees the current
+message only. **VRAM finding (measured live, 2026-10-17, RTX 3050 6 GB):** the two models do NOT stay resident together. `ollama ps` after a default turn showed `llama3.2:3b` only (2.6 GB, 100% GPU); after a thinking turn `qwen3:4b` only (3.2 GB, 100% GPU), so a thinking turn **evicts the default model**; after the next default turn `llama3.2:3b` only again. Whichever model was resident was 100% GPU. That next default turn took **15.0 s** wall (a warm one is 2 to 6 s) and did **not** fall back (under the 18 s timeout), but the reload alone is about **10.7 s** (Ollama `load_duration` 10.65 s, reproduced directly; `qwen3:4b`'s first load was 10.8 s, not the ~5 s assumed), so the margin under 18 s is only a few seconds and a longer reply right after a thinking turn can serve the template. **The demo must re-warm (about 11 s) after using the toggle.** No Ollama environment variable was changed.
+**Demo rule (B11, lead ruling): the brain toggle is demonstrated LAST.** After it either the demo ends, or the
+presenter re-warms before the next normal turn; it is never pressed mid-episode with the default path
+continuing. In B11, a turn after a toggle use includes a model load, so it is discardable under the existing
+rule, and the discard is noted.
 
 **Memory (M1): what the generator sees, and what the classifier never does.** The generator's prompt now
 carries the earlier turns of the **current episode** as a bounded `<conversation>` block: the last **6**

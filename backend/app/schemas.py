@@ -68,6 +68,9 @@ class TutorRequest(_Contract):
     history: list[HistoryTurn]
     state: TutorState | None  # required: may be null, may not be absent
     profile: Profile | None = None  # PP2 only; always null in PP1
+    # T1, additive: the student asked for thinking mode (slow, opt-in). strict=True, so "yes" is a 422; an old
+    # frontend that never sends it gets False.
+    thinking: bool = False
 
     @field_validator("topic")
     @classmethod
@@ -152,6 +155,9 @@ class ResponseMeta(_Emitted):
     fallback: bool | None = None  # always set by this service; optional in the contract
     # Additive (R6): "question_guard" when this turn declined to resolve because the message was a question.
     resolution_declined: Literal["question_guard", "model_understood_not_trusted"] | None = None
+    # Additive (T1): true iff this turn was REQUESTED with thinking. `meta.llm` names the model that was asked
+    # and `meta.fallback` says whether the template was served: together they say what the student got.
+    thinking: bool = False
 
 
 class TutorResponse(_Emitted):

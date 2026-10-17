@@ -82,19 +82,34 @@ class OllamaAdapter:
     once in the lifespan, closed on shutdown), so tests can build one on httpx.MockTransport.
     Any failure RAISES; the orchestrator turns an exception into the template fallback."""
 
-    def __init__(self, client: httpx.AsyncClient, base_url: str, model: str, max_tokens: int) -> None:
+    def __init__(
+        self, client: httpx.AsyncClient, base_url: str, model: str, max_tokens: int | None,
+        *, think: bool = False, keep_alive: str = KEEP_ALIVE,
+    ) -> None:
         self.client = client
         self.base_url = base_url.rstrip("/")
         self.model = model
-        self.max_tokens = max_tokens
+        self.max_tokens = max_tokens  # ignored when think=True: thinking is UNCAPPED by ruling (T1)
+        self.think = think
+        self.keep_alive = keep_alive
 
     def request_body(self, prompt: str) -> dict[str, Any]:
+        if self.think:
+            # Thinking mode: think on, NO num_predict (the probe: capped at 1500 gave 0 answers in 5). Only
+            # `message.content` is ever read from the reply; `message.thinking` is discarded (see complete).
+            return {
+                "model": self.model,
+                "messages": [{"role": "user", "content": prompt}],
+                "think": True,
+                "stream": False,
+                "keep_alive": self.keep_alive,
+            }
         return {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
             "think": False,
             "stream": False,
-            "keep_alive": KEEP_ALIVE,
+            "keep_alive": self.keep_alive,
             "options": {"num_predict": self.max_tokens},
         }
 
@@ -104,6 +119,8 @@ class OllamaAdapter:
             raise OllamaError(f"/api/chat answered HTTP {resp.status_code}")
         try:
             body = resp.json()
+            # `message.content` ONLY. `message.thinking` (thinking mode) is never read, returned, logged or put
+            # in an exception message: it is the model's private reasoning and may echo the student's words.
             text = body["message"]["content"]
             done_reason = body.get("done_reason")
         except (ValueError, KeyError, TypeError) as exc:

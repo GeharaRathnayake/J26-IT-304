@@ -67,6 +67,12 @@ From `llama3.2_3b_2026-10-15_np110_r2_c2same.json` (48 generations, what the ser
 **truncated at the r2 110-token cap 88%** (cycle 1: 69%); **example with complete Java 83%**. For
 `c2all` (what S8 sent): 33% over the 18 s timeout, p95 26.3 s.
 
+**Correction (M1, 2026-10-17): the c2all caution is a CPU result and does not reproduce on the GPU.** The
+comparison above (c2all, four priors, p95 26.3 s against c2same 14.6 s) was measured with the discrete GPU off.
+M1's A/B on the GPU (`benchmarks/llm/memory/`, r3, 220 tokens) took the prompt median from 1,035 to 2,084
+characters and left wall p95 at 5.74 s against 5.82 s. Those are single runs, so the difference is noise and not
+a figure: **do not write "memory costs 80 ms"**. It is not a reason to fear context length on this GPU.
+
 In plain words: at 18 s, cycle-2 replies are generated rather than timing out, but about 1 in 7 is
 still replaced by the template because it fails `would_ship`. On the template path C3 (dynamically
 different explanations across cycles) holds only for `inheritance` and `general`, which have a second
@@ -234,6 +240,13 @@ within order and thermal noise and are not claims. The earlier caution (c2all, f
 overlap between cycle-2 priors and the conversation was not exercised (priors exist only from cycle 2; this set
 is cycle 1), so it is not reported. Whether the replies actually use the history is not measured: that is a
 human judgement. "Shippable in form" is not accuracy.
+
+**A live finding (M1, 2026-10-17), with the quote.** Asked "what was the first thing you told me?", the reply
+named the right content and then contradicted itself ("...but that's not correct"). The information is in the
+prompt, but the model does not use it reliably. The approved claim wording is "the generator is given the
+current episode's earlier turns", never "the tutor remembers the conversation". Scope limit, restated: after
+SF1 the frontend sends `history: []` when a new episode starts, so memory reaches back no further than the start
+of the current episode.
 
 ## How to read `SUMMARY.md`
 

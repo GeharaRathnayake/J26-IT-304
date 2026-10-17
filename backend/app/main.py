@@ -120,12 +120,14 @@ def create_app(
     *,
     settings: Settings | None = None,
     adapter: LLMAdapter | None = None,
+    thinking_adapter: LLMAdapter | None = None,
     ollama_transport: httpx.AsyncBaseTransport | None = None,
     now: Callable[[], datetime] = utc_now,
     new_episode_id: Callable[[], str] = default_episode_id,
 ) -> FastAPI:
     """`adapter`, `ollama_transport`, `now` and `new_episode_id` are injection points for tests.
-    `adapter` replaces the provider's adapter ("mock" or "ollama"); `ollama_transport` (an
+    `adapter` replaces the provider's adapter ("mock" or "ollama"); `thinking_adapter` replaces the thinking-mode
+    adapter (T1, "ollama" only); `ollama_transport` (an
     httpx.MockTransport) is what the real OllamaAdapter talks through under "ollama", for generation,
     the /health check and the warm-up alike."""
     settings = settings if settings is not None else Settings()
@@ -151,6 +153,8 @@ def create_app(
         client: httpx.AsyncClient | None = None
         warm_up: asyncio.Task | None = None
         llm_label = provider
+        thinking_adapter_in_use: LLMAdapter | None = None
+        thinking_label: str | None = None
         if provider == "mock":
             app.state.adapter = adapter or MockAdapter()
         elif provider == "ollama":
@@ -163,6 +167,17 @@ def create_app(
             logger.info(
                 "LLM provider: ollama, model %s at %s (num_predict %d, timeout %.1f s); template fallback on",
                 settings.LLM_MODEL, settings.OLLAMA_URL, settings.LLM_MAX_TOKENS, settings.LLM_TIMEOUT_S,
+            )
+            # T1: the thinking adapter (opt-in per request). NOT warmed: it would compete for VRAM with the
+            # default model, so the first thinking turn pays the load.
+            thinking_adapter_in_use = thinking_adapter or OllamaAdapter(
+                client, settings.OLLAMA_URL, settings.LLM_THINKING_MODEL, None,
+                think=True, keep_alive=settings.LLM_THINKING_KEEP_ALIVE,
+            )
+            thinking_label = f"ollama:{settings.LLM_THINKING_MODEL}"
+            logger.info(
+                "thinking mode available (opt-in per request): model %s, timeout %.0f s, keep_alive %s; not warmed",
+                settings.LLM_THINKING_MODEL, settings.LLM_THINKING_TIMEOUT_S, settings.LLM_THINKING_KEEP_ALIVE,
             )
             # In the background: startup is never blocked, and a failure never fails it. Only the real
             # adapter is warmed (an injected test adapter would record the warm-up prompt as a turn).
@@ -184,6 +199,9 @@ def create_app(
                 adapter=app.state.adapter,
                 llm_timeout_s=settings.LLM_TIMEOUT_S,
                 llm_label=llm_label,
+                thinking_adapter=thinking_adapter_in_use,
+                thinking_timeout_s=settings.LLM_THINKING_TIMEOUT_S,
+                thinking_label=thinking_label,
                 weak_threshold=settings.WEAK_THRESHOLD,
                 now=now,
                 new_episode_id=new_episode_id,
