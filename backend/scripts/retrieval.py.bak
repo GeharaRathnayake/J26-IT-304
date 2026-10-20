@@ -1,0 +1,122 @@
+"""
+retrieval.py - gated vs unrestricted retrieval over the ChromaDB course knowledge base.
+
+Usage (from C:\\4y1s\\rag-project):
+    python scripts\\retrieval.py "What is a class in Java?"
+
+Import in Flask later:
+    from retrieval import retrieve
+"""
+import re
+import sys
+from pathlib import Path
+
+import chromadb
+import numpy as np
+from chromadb.utils import embedding_functions
+
+ROOT = Path(__file__).resolve().parent
+if not (ROOT / "chroma_db").exists():
+    ROOT = ROOT.parent
+DB_DIR = str(ROOT / "chroma_db")
+
+# FR-13: must be the SAME model that ingest.py used.
+MODEL = "all-MiniLM-L6-v2"
+
+# Chroma returns squared L2 distance here (lower = more similar).
+# Starting value only: calibrate it on your own test questions.
+DECLINE_DISTANCE = 0.9
+
+_embed = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=MODEL)
+_client = chromadb.PersistentClient(path=DB_DIR)
+_collection = _client.get_collection(name="course_chunks", embedding_function=_embed)
+
+
+def retrieve(question, completed_lectures, gate=True, n_results=3):
+    """
+    gate=True : only chunks whose lecture_id is in completed_lectures can be searched.
+    gate=False: unrestricted baseline, searches the whole knowledge base.
+
+    Returns {"status": "ok" | "declined", "reason": str, "chunks": [...]}.
+    """
+    where = None
+    if gate:
+        if not completed_lectures:
+            # nothing completed yet, so nothing may be retrieved (no search is run at all)
+            return {"status": "declined", "reason": "no completed lectures", "chunks": []}
+        where = {"lecture_id": {"$in": list(completed_lectures)}}
+
+    res = _collection.query(query_texts=[question], n_results=n_results, where=where)
+
+    chunks = []
+    for doc, meta, dist in zip(res["documents"][0], res["metadatas"][0], res["distances"][0]):
+        chunks.append({
+            "text": doc,
+            "lecture_id": meta["lecture_id"],
+            "slide_number": meta["slide_number"],
+            "topic": meta["topic"],
+            "distance": dist,
+        })
+
+    # keep only reasonably close matches; if none are close, decline instead of guessing
+    close = [c for c in chunks if c["distance"] <= DECLINE_DISTANCE]
+    if not close:
+        return {"status": "declined", "reason": "no relevant content in allowed lectures", "chunks": []}
+    return {"status": "ok", "reason": "", "chunks": close}
+
+
+# ---------------------------------------------------------------------------
+# Scope check (FR-3 / FR-4): decide which lecture a question belongs to using
+# ONLY slide titles (metadata), never slide content, and decline if the best
+# match is in a lecture the student has not completed.
+# ---------------------------------------------------------------------------
+LOCK_MARGIN = 0.05      # locked title must beat the best allowed title by this much
+LOCK_MAX_DISTANCE = 0.9  # ignore locked matches that are weak (off-topic questions)
+_SKIP_TITLES = re.compile(r"^(exercise|thank you|learning outcomes)", re.I)
+_catalog = None
+
+
+def _load_catalog():
+    global _catalog
+    if _catalog is None:
+        metas = _collection.get(include=["metadatas"])["metadatas"]
+        seen, items = set(), []
+        for m in metas:
+            key = (m["lecture_id"], m["topic"])
+            if key in seen or _SKIP_TITLES.match(m["topic"]):
+                continue
+            seen.add(key)
+            items.append(key)
+        vecs = np.array(_embed([t for _, t in items]), dtype=float)
+        _catalog = (items, vecs)
+    return _catalog
+
+
+def check_scope(question, completed_lectures):
+    """Return {"scope": "allowed" | "locked", "lecture_id": ..., "best_allowed": d, "best_locked": d}."""
+    items, vecs = _load_catalog()
+    q = np.array(_embed([question])[0], dtype=float)
+    dists = ((vecs - q) ** 2).sum(axis=1)
+    allowed = [d for (lec, _), d in zip(items, dists) if lec in completed_lectures]
+    locked = [(d, lec) for (lec, _), d in zip(items, dists) if lec not in completed_lectures]
+    best_allowed = min(allowed) if allowed else 9.0
+    if locked:
+        best_locked, lock_lec = min(locked)
+        if best_locked <= LOCK_MAX_DISTANCE and best_locked < best_allowed - LOCK_MARGIN:
+            return {"scope": "locked", "lecture_id": lock_lec,
+                    "best_allowed": float(best_allowed), "best_locked": float(best_locked)}
+    return {"scope": "allowed", "lecture_id": None,
+            "best_allowed": float(best_allowed), "best_locked": float(min(locked)[0]) if locked else None}
+
+
+if __name__ == "__main__":
+    q = " ".join(sys.argv[1:]) or "What is a class in Java?"
+    for label, gate, completed in [
+        ("GATE OFF (baseline)", False, []),
+        ("GATE ON, completed = [lec1]", True, ["lec1"]),
+        ("GATE ON, completed = []", True, []),
+    ]:
+        out = retrieve(q, completed, gate=gate)
+        print(f"\n=== {label} -> {out['status']} {out['reason']}")
+        for c in out["chunks"]:
+            print(f"  {c['lecture_id']} slide {c['slide_number']} | {c['topic']} | {c['distance']:.3f}")

@@ -1,3 +1,0 @@
-System,Accuracy,Precision,Recall,F1 (confused),Macro F1
-Majority class,0.5972,0.5972,1.0,0.7478,0.3739
-Stratified random (seed 42),0.4583,0.5441,0.5736,0.5585,0.4289

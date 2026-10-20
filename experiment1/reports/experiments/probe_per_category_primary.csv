@@ -1,5 +1,0 @@
-category,expected,n,model correct,model rate,length-only correct,length-only rate,mean P(confused),rate means
-explicit_confusion,confused,10,9,0.9,10,1.0,0.823,recall
-topic_confusion,confused,10,9,0.9,10,1.0,0.757,recall
-hedged_attempt,confused,10,8,0.8,10,1.0,0.829,recall
-explicit_understanding,understood,10,2,0.2,0,0.0,0.694,specificity
