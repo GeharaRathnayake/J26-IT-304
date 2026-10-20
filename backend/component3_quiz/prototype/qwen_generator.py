@@ -919,19 +919,23 @@ def build_prompt(
 
 
     elif target_concept == "declaration":
-        concept_rule = (
-            "Test only Java variable declarations. Prefer the stem "
-            "'Which declaration compiles successfully in Java?' Provide "
-            "four complete, independent declarations. Exactly one must "
-            "compile and the other three must each have a clear compile-time "
-            "error. Use one valid declaration such as 'int count = 10;'. "
-            "For invalid options, use genuine errors such as assigning a "
-            "String literal to int, using single quotes for a String literal, "
-            "or assigning a double-quoted String literal to char. Do not use "
-            "other valid declarations as distractors: 'double price = 9.99f;' "
-            "is valid Java. Ensure the correct answer is correct and the "
-            "explanation accurately identifies the Java rule."
-        )
+        if question_number % 2 == 1:
+            concept_rule = (
+                "Use question form A: ask which declaration compiles successfully in Java. "
+                "The correct answer must be one valid declaration. All three wrong answers must have definite compile-time errors. "
+                "Possible errors include assigning a String literal to int, using single quotes for a String literal, or assigning a double-quoted String to char. "
+                "Use different variable names and values in each question. "
+                "Check every option independently. Exactly one option must compile."
+            )
+        else:
+            concept_rule = (
+                "Use question form B: ask which declaration causes a compile-time error. "
+                "The correct answer must be one invalid declaration, and all three wrong answers must compile successfully. "
+                "For example, a String declaration using single quotes is invalid. Valid alternatives can include int count = 10;, double price = 9.99;, and char grade = 'A';. "
+                "Do not use int x = 'a'; as an invalid declaration because it is valid Java. "
+                "Check every option independently. Exactly one option must fail compilation. "
+                "Do not use the generic stem 'Which declaration is valid Java?' for this question form."
+            )
 
     else:
         concept_rule = (
@@ -1047,6 +1051,80 @@ Return exactly one question inside a JSON array.
 
 # ============================================================
 # GENERATE ONE BATCH
+
+def build_declaration_fallback(question_number):
+    """Build varied declaration questions using explicit Java rules."""
+    types = [
+        ("int", "quizInt", 'int {v} = 42;',
+         ['int {v} = "forty-two";', 'int {v} = true;', 'int {v} = 4.5;'],
+         "An int accepts an integer-compatible value, not a String, boolean, or double."),
+
+        ("String", "quizString", 'String {v} = "Ada";',
+         ["String {v} = 'Ada';", "String {v} = 42;", "String {v} = false;"],
+         "A String literal uses double quotes; an integer, boolean, or multi-character single-quoted literal is not a String."),
+
+        ("char", "quizChar", "char {v} = 'K';",
+         ['char {v} = "K";', "char {v} = 'KL';", "char {v} = false;"],
+         "A char holds one character in single quotes; a String, multi-character literal, or boolean is incompatible."),
+
+        ("boolean", "quizFlag", "boolean {v} = true;",
+         ['boolean {v} = "true";', "boolean {v} = 1;", "boolean {v} = null;"],
+         "A primitive boolean accepts true or false, not a String, integer, or null."),
+
+        ("float", "quizRate", "float {v} = 2.5f;",
+         ["float {v} = 2.5;", 'float {v} = "2.5";', "float {v} = true;"],
+         "A decimal literal assigned directly to float needs an f or F suffix; String and boolean values are incompatible."),
+
+        ("long", "quizTotal", "long {v} = 42L;",
+         ['long {v} = "42";', "long {v} = false;", "long {v} = 3.5;"],
+         "A long accepts an integer-compatible value; a String, boolean, or double literal cannot be assigned directly."),
+
+        ("double", "quizPrice", "double {v} = 19.75;",
+         ['double {v} = "19.75";', "double {v} = false;", "double {v} = null;"],
+         "A double accepts a numeric decimal literal, not a String, boolean, or null.")
+    ]
+
+    kind, prefix, correct_template, wrong_templates, explanation = (
+        types[(question_number - 1) % len(types)]
+    )
+    variable = f"{prefix}{random.randint(10000, 99999)}"
+    correct = correct_template.format(v=variable)
+    wrong = [item.format(v=variable) for item in wrong_templates]
+
+    stems = [
+        "Which Java declaration correctly initializes the {kind} variable {v}?",
+        "A Java program needs {v} to have type {kind}. Which declaration compiles?",
+        "Select the declaration with a compatible initializer for {v}, whose type is {kind}.",
+        "Identify the legal initializer for {v} by selecting the declaration using Java type {kind}.",
+        "Choose the Java declaration accepted by the compiler for {v} of type {kind}.",
+        "Given a variable named {v} with type {kind}, choose a declaration that compiles.",
+        "To initialize {v} as a {kind}, which Java statement is valid?",
+    ]
+
+    stem = stems[(question_number - 1) % len(stems)].format(
+        kind=kind, v=variable
+    )
+
+    choices = [(correct, True)] + [(item, False) for item in wrong]
+    random.shuffle(choices)
+
+    options = {}
+    answer = None
+    for label, (text, is_correct) in zip("ABCD", choices):
+        options[label] = text
+        if is_correct:
+            answer = label
+
+    return {
+        "stem": stem,
+        "concept_tag": "declaration",
+        "explanation": explanation,
+        "options": options,
+        "answer": answer,
+    }
+
+
+
 # ============================================================
 
 def show_rejected(candidate):
@@ -1208,6 +1286,39 @@ def generate_batch(
             except (ValueError, RuntimeError) as exc:
                 last_errors = [str(exc)]
                 print(f"\nAttempt failed: {exc}")
+
+        if accepted_question is None and target_concept == "declaration":
+            fallback = build_declaration_fallback(question_number)
+            comparison_bank = static_bank + accepted_questions + accepted_batch
+
+            fallback_errors = run_local_checks(
+                fallback, target_concept, previous_stems, comparison_bank
+            )
+
+            if not fallback_errors:
+                fallback_errors = check_unique_answer(fallback)
+
+            if not fallback_errors:
+                validated, fallback_errors = validate_generated_questions(
+                    questions=[fallback],
+                    module_no=module_no,
+                    allowed_concepts=weak_concepts,
+                    existing_questions=comparison_bank,
+                    required_count=1,
+                    near_duplicate_threshold=NEAR_DUPLICATE_THRESHOLD,
+                )
+
+                if validated and not fallback_errors:
+                    accepted_question = validated[0]
+                    print(
+                        "\\nQwen retries failed; a rule-based declaration "
+                        "question passed all validators."
+                    )
+
+            if accepted_question is None:
+                print("Declaration fallback was also rejected:")
+                for error in fallback_errors:
+                    print("  -", error)
 
         if accepted_question is None:
             raise RuntimeError(
