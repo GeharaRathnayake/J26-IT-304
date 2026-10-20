@@ -7,13 +7,13 @@ BASE = Path(__file__).parent
 QUESTION_FILE = BASE / "static_questions.json"
 DB_FILE = BASE / "learner_data.db"
 
-PASS_MARK = 0.90
-STRICT = False         # At least 90% passes: 9/10 or 10/10.
+INITIAL_QUESTION_COUNT = 10
+INITIAL_PASS_COUNT = 9
 SETS_PER_MODULE = 10
 MODULES = 10
 
-def passed(pct):
-    return pct > PASS_MARK if STRICT else pct >= PASS_MARK
+def passed(score):
+    return score >= INITIAL_PASS_COUNT
 
 def init_progress(conn, learner):
     conn.execute(
@@ -103,8 +103,13 @@ def main():
         return
     m, s = current
     selected = [q for q in questions if q["module_no"] == m and q["set_no"] == s]
-    if not selected:
-        print(f"No questions found for Module {m}, Set {s}.")
+    if len(selected) != INITIAL_QUESTION_COUNT:
+        print(
+            f"Expected {INITIAL_QUESTION_COUNT} questions for "
+            f"Module {m}, Set {s}; found {len(selected)}. "
+            "Cannot start an invalid quiz set."
+        )
+        conn.close()
         return
 
     print(f"\n=== Module {m}, Set {s} ===")
@@ -138,7 +143,7 @@ def main():
     pct = score / len(selected)
     print(f"\nFinal score: {score}/{len(selected)} ({pct:.0%})")
 
-    if passed(pct):
+    if passed(score):
         record_score(conn, learner, m, s, pct, "passed")
         print("PASS!")
         if s < SETS_PER_MODULE:

@@ -10,7 +10,7 @@ from qwen_generator import generate_questions
 
 
 BASE_DIR = Path(__file__).parent
-PASS_MARK = 0.90
+REMEDIAL_PASS_COUNT = 28
 REMEDIAL_QUESTION_COUNT = 30
 SETS_PER_MODULE = 10
 MODULE_COUNT = 10
@@ -19,7 +19,7 @@ MODULE_COUNT = 10
 def run_remedial_round(conn, learner_id, module_no, set_no, weak_tags):
     """
     Generate and run 30-question remedial rounds until the learner
-    scores strictly above 90%, or question generation fails.
+    scores at least 28/30, or question generation fails.
 
     Uses the existing learner_data.db connection.
     """
@@ -234,7 +234,7 @@ def run_remedial_round(conn, learner_id, module_no, set_no, weak_tags):
             conn.commit()
 
         percentage = score / REMEDIAL_QUESTION_COUNT
-        passed = percentage > PASS_MARK
+        passed = score >= REMEDIAL_PASS_COUNT
 
         conn.execute(
             """
@@ -257,7 +257,7 @@ def run_remedial_round(conn, learner_id, module_no, set_no, weak_tags):
             f"{REMEDIAL_QUESTION_COUNT} ({percentage:.1%})"
         )
 
-        # Strictly above 90%: at least 28 correct out of 30.
+        # Passing requires at least 28 correct answers out of 30.
         if passed:
             conn.execute(
                 """
