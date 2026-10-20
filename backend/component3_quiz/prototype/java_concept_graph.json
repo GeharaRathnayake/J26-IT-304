@@ -1,0 +1,2020 @@
+{
+  "metadata": {
+    "question_count": 1000,
+    "module_count": 10,
+    "concept_count": 109,
+    "original_module_edge_count": 9,
+    "concept_relationship_count": 97
+  },
+  "nodes": [
+    {
+      "id": "module_1",
+      "name": "Variables",
+      "node_type": "module",
+      "module_no": 1
+    },
+    {
+      "id": "module_2",
+      "name": "Data Types",
+      "node_type": "module",
+      "module_no": 2
+    },
+    {
+      "id": "module_3",
+      "name": "Operators",
+      "node_type": "module",
+      "module_no": 3
+    },
+    {
+      "id": "module_4",
+      "name": "Control Flow",
+      "node_type": "module",
+      "module_no": 4
+    },
+    {
+      "id": "module_5",
+      "name": "Loops",
+      "node_type": "module",
+      "module_no": 5
+    },
+    {
+      "id": "module_6",
+      "name": "Arrays",
+      "node_type": "module",
+      "module_no": 6
+    },
+    {
+      "id": "module_7",
+      "name": "Methods",
+      "node_type": "module",
+      "module_no": 7
+    },
+    {
+      "id": "module_8",
+      "name": "Classes and Objects",
+      "node_type": "module",
+      "module_no": 8
+    },
+    {
+      "id": "module_9",
+      "name": "Inheritance",
+      "node_type": "module",
+      "module_no": 9
+    },
+    {
+      "id": "module_10",
+      "name": "Polymorphism",
+      "node_type": "module",
+      "module_no": 10
+    },
+    {
+      "id": "m1_assignment",
+      "name": "Assignment",
+      "node_type": "concept",
+      "concept_tag": "assignment",
+      "module_no": 1,
+      "question_count": 9
+    },
+    {
+      "id": "m1_constants",
+      "name": "Constants",
+      "node_type": "concept",
+      "concept_tag": "constants",
+      "module_no": 1,
+      "question_count": 11
+    },
+    {
+      "id": "m1_declaration",
+      "name": "Declaration",
+      "node_type": "concept",
+      "concept_tag": "declaration",
+      "module_no": 1,
+      "question_count": 6
+    },
+    {
+      "id": "m1_default_values",
+      "name": "Default Values",
+      "node_type": "concept",
+      "concept_tag": "default_values",
+      "module_no": 1,
+      "question_count": 12
+    },
+    {
+      "id": "m1_initialization",
+      "name": "Initialization",
+      "node_type": "concept",
+      "concept_tag": "initialization",
+      "module_no": 1,
+      "question_count": 9
+    },
+    {
+      "id": "m1_naming",
+      "name": "Naming",
+      "node_type": "concept",
+      "concept_tag": "naming",
+      "module_no": 1,
+      "question_count": 6
+    },
+    {
+      "id": "m1_naming_convention",
+      "name": "Naming Convention",
+      "node_type": "concept",
+      "concept_tag": "naming_convention",
+      "module_no": 1,
+      "question_count": 4
+    },
+    {
+      "id": "m1_reassignment",
+      "name": "Reassignment",
+      "node_type": "concept",
+      "concept_tag": "reassignment",
+      "module_no": 1,
+      "question_count": 11
+    },
+    {
+      "id": "m1_scope",
+      "name": "Scope",
+      "node_type": "concept",
+      "concept_tag": "scope",
+      "module_no": 1,
+      "question_count": 9
+    },
+    {
+      "id": "m1_shadowing",
+      "name": "Shadowing",
+      "node_type": "concept",
+      "concept_tag": "shadowing",
+      "module_no": 1,
+      "question_count": 2
+    },
+    {
+      "id": "m1_type_inference",
+      "name": "Type Inference",
+      "node_type": "concept",
+      "concept_tag": "type_inference",
+      "module_no": 1,
+      "question_count": 10
+    },
+    {
+      "id": "m1_variable_types",
+      "name": "Variable Types",
+      "node_type": "concept",
+      "concept_tag": "variable_types",
+      "module_no": 1,
+      "question_count": 11
+    },
+    {
+      "id": "m2_boolean_type",
+      "name": "Boolean Type",
+      "node_type": "concept",
+      "concept_tag": "boolean_type",
+      "module_no": 2,
+      "question_count": 2
+    },
+    {
+      "id": "m2_casting",
+      "name": "Casting",
+      "node_type": "concept",
+      "concept_tag": "casting",
+      "module_no": 2,
+      "question_count": 14
+    },
+    {
+      "id": "m2_char_type",
+      "name": "Char Type",
+      "node_type": "concept",
+      "concept_tag": "char_type",
+      "module_no": 2,
+      "question_count": 8
+    },
+    {
+      "id": "m2_floating_point",
+      "name": "Floating Point",
+      "node_type": "concept",
+      "concept_tag": "floating_point",
+      "module_no": 2,
+      "question_count": 5
+    },
+    {
+      "id": "m2_integer_types",
+      "name": "Integer Types",
+      "node_type": "concept",
+      "concept_tag": "integer_types",
+      "module_no": 2,
+      "question_count": 8
+    },
+    {
+      "id": "m2_literals",
+      "name": "Literals",
+      "node_type": "concept",
+      "concept_tag": "literals",
+      "module_no": 2,
+      "question_count": 13
+    },
+    {
+      "id": "m2_overflow",
+      "name": "Overflow",
+      "node_type": "concept",
+      "concept_tag": "overflow",
+      "module_no": 2,
+      "question_count": 4
+    },
+    {
+      "id": "m2_precision",
+      "name": "Precision",
+      "node_type": "concept",
+      "concept_tag": "precision",
+      "module_no": 2,
+      "question_count": 6
+    },
+    {
+      "id": "m2_primitive_types",
+      "name": "Primitive Types",
+      "node_type": "concept",
+      "concept_tag": "primitive_types",
+      "module_no": 2,
+      "question_count": 8
+    },
+    {
+      "id": "m2_promotion",
+      "name": "Promotion",
+      "node_type": "concept",
+      "concept_tag": "promotion",
+      "module_no": 2,
+      "question_count": 13
+    },
+    {
+      "id": "m2_string_type",
+      "name": "String Type",
+      "node_type": "concept",
+      "concept_tag": "string_type",
+      "module_no": 2,
+      "question_count": 8
+    },
+    {
+      "id": "m2_wrappers",
+      "name": "Wrappers",
+      "node_type": "concept",
+      "concept_tag": "wrappers",
+      "module_no": 2,
+      "question_count": 11
+    },
+    {
+      "id": "m3_arithmetic",
+      "name": "Arithmetic",
+      "node_type": "concept",
+      "concept_tag": "arithmetic",
+      "module_no": 3,
+      "question_count": 13
+    },
+    {
+      "id": "m3_bitwise",
+      "name": "Bitwise",
+      "node_type": "concept",
+      "concept_tag": "bitwise",
+      "module_no": 3,
+      "question_count": 12
+    },
+    {
+      "id": "m3_compound",
+      "name": "Compound",
+      "node_type": "concept",
+      "concept_tag": "compound",
+      "module_no": 3,
+      "question_count": 11
+    },
+    {
+      "id": "m3_concat",
+      "name": "Concat",
+      "node_type": "concept",
+      "concept_tag": "concat",
+      "module_no": 3,
+      "question_count": 10
+    },
+    {
+      "id": "m3_increment",
+      "name": "Increment",
+      "node_type": "concept",
+      "concept_tag": "increment",
+      "module_no": 3,
+      "question_count": 11
+    },
+    {
+      "id": "m3_logical",
+      "name": "Logical",
+      "node_type": "concept",
+      "concept_tag": "logical",
+      "module_no": 3,
+      "question_count": 11
+    },
+    {
+      "id": "m3_precedence",
+      "name": "Precedence",
+      "node_type": "concept",
+      "concept_tag": "precedence",
+      "module_no": 3,
+      "question_count": 10
+    },
+    {
+      "id": "m3_relational",
+      "name": "Relational",
+      "node_type": "concept",
+      "concept_tag": "relational",
+      "module_no": 3,
+      "question_count": 10
+    },
+    {
+      "id": "m3_ternary",
+      "name": "Ternary",
+      "node_type": "concept",
+      "concept_tag": "ternary",
+      "module_no": 3,
+      "question_count": 12
+    },
+    {
+      "id": "m4_conditions",
+      "name": "Conditions",
+      "node_type": "concept",
+      "concept_tag": "conditions",
+      "module_no": 4,
+      "question_count": 13
+    },
+    {
+      "id": "m4_else_if",
+      "name": "Else If",
+      "node_type": "concept",
+      "concept_tag": "else_if",
+      "module_no": 4,
+      "question_count": 10
+    },
+    {
+      "id": "m4_fallthrough",
+      "name": "Fallthrough",
+      "node_type": "concept",
+      "concept_tag": "fallthrough",
+      "module_no": 4,
+      "question_count": 10
+    },
+    {
+      "id": "m4_if_else",
+      "name": "If Else",
+      "node_type": "concept",
+      "concept_tag": "if_else",
+      "module_no": 4,
+      "question_count": 10
+    },
+    {
+      "id": "m4_modern_switch",
+      "name": "Modern Switch",
+      "node_type": "concept",
+      "concept_tag": "modern_switch",
+      "module_no": 4,
+      "question_count": 11
+    },
+    {
+      "id": "m4_nested_if",
+      "name": "Nested If",
+      "node_type": "concept",
+      "concept_tag": "nested_if",
+      "module_no": 4,
+      "question_count": 11
+    },
+    {
+      "id": "m4_pitfalls",
+      "name": "Pitfalls",
+      "node_type": "concept",
+      "concept_tag": "pitfalls",
+      "module_no": 4,
+      "question_count": 12
+    },
+    {
+      "id": "m4_structure",
+      "name": "Structure",
+      "node_type": "concept",
+      "concept_tag": "structure",
+      "module_no": 4,
+      "question_count": 3
+    },
+    {
+      "id": "m4_switch",
+      "name": "Switch",
+      "node_type": "concept",
+      "concept_tag": "switch",
+      "module_no": 4,
+      "question_count": 10
+    },
+    {
+      "id": "m4_tracing",
+      "name": "Tracing",
+      "node_type": "concept",
+      "concept_tag": "tracing",
+      "module_no": 4,
+      "question_count": 10
+    },
+    {
+      "id": "m5_break_continue",
+      "name": "Break Continue",
+      "node_type": "concept",
+      "concept_tag": "break_continue",
+      "module_no": 5,
+      "question_count": 11
+    },
+    {
+      "id": "m5_choice",
+      "name": "Choice",
+      "node_type": "concept",
+      "concept_tag": "choice",
+      "module_no": 5,
+      "question_count": 2
+    },
+    {
+      "id": "m5_do_while",
+      "name": "Do While",
+      "node_type": "concept",
+      "concept_tag": "do_while",
+      "module_no": 5,
+      "question_count": 10
+    },
+    {
+      "id": "m5_enhanced_for",
+      "name": "Enhanced For",
+      "node_type": "concept",
+      "concept_tag": "enhanced_for",
+      "module_no": 5,
+      "question_count": 5
+    },
+    {
+      "id": "m5_for_loop",
+      "name": "For Loop",
+      "node_type": "concept",
+      "concept_tag": "for_loop",
+      "module_no": 5,
+      "question_count": 10
+    },
+    {
+      "id": "m5_infinite_loop",
+      "name": "Infinite Loop",
+      "node_type": "concept",
+      "concept_tag": "infinite_loop",
+      "module_no": 5,
+      "question_count": 5
+    },
+    {
+      "id": "m5_nested_loops",
+      "name": "Nested Loops",
+      "node_type": "concept",
+      "concept_tag": "nested_loops",
+      "module_no": 5,
+      "question_count": 10
+    },
+    {
+      "id": "m5_off_by_one",
+      "name": "Off By One",
+      "node_type": "concept",
+      "concept_tag": "off_by_one",
+      "module_no": 5,
+      "question_count": 5
+    },
+    {
+      "id": "m5_patterns",
+      "name": "Patterns",
+      "node_type": "concept",
+      "concept_tag": "patterns",
+      "module_no": 5,
+      "question_count": 10
+    },
+    {
+      "id": "m5_string_loop",
+      "name": "String Loop",
+      "node_type": "concept",
+      "concept_tag": "string_loop",
+      "module_no": 5,
+      "question_count": 5
+    },
+    {
+      "id": "m5_tracing",
+      "name": "Tracing",
+      "node_type": "concept",
+      "concept_tag": "tracing",
+      "module_no": 5,
+      "question_count": 17
+    },
+    {
+      "id": "m5_while_loop",
+      "name": "While Loop",
+      "node_type": "concept",
+      "concept_tag": "while_loop",
+      "module_no": 5,
+      "question_count": 10
+    },
+    {
+      "id": "m6_array_2d",
+      "name": "Array 2D",
+      "node_type": "concept",
+      "concept_tag": "array_2d",
+      "module_no": 6,
+      "question_count": 11
+    },
+    {
+      "id": "m6_array_algorithms",
+      "name": "Array Algorithms",
+      "node_type": "concept",
+      "concept_tag": "array_algorithms",
+      "module_no": 6,
+      "question_count": 15
+    },
+    {
+      "id": "m6_array_declaration",
+      "name": "Array Declaration",
+      "node_type": "concept",
+      "concept_tag": "array_declaration",
+      "module_no": 6,
+      "question_count": 10
+    },
+    {
+      "id": "m6_array_length",
+      "name": "Array Length",
+      "node_type": "concept",
+      "concept_tag": "array_length",
+      "module_no": 6,
+      "question_count": 5
+    },
+    {
+      "id": "m6_array_methods",
+      "name": "Array Methods",
+      "node_type": "concept",
+      "concept_tag": "array_methods",
+      "module_no": 6,
+      "question_count": 4
+    },
+    {
+      "id": "m6_array_reference",
+      "name": "Array Reference",
+      "node_type": "concept",
+      "concept_tag": "array_reference",
+      "module_no": 6,
+      "question_count": 10
+    },
+    {
+      "id": "m6_arrays_class",
+      "name": "Arrays Class",
+      "node_type": "concept",
+      "concept_tag": "arrays_class",
+      "module_no": 6,
+      "question_count": 10
+    },
+    {
+      "id": "m6_default_values",
+      "name": "Default Values",
+      "node_type": "concept",
+      "concept_tag": "default_values",
+      "module_no": 6,
+      "question_count": 5
+    },
+    {
+      "id": "m6_indexing",
+      "name": "Indexing",
+      "node_type": "concept",
+      "concept_tag": "indexing",
+      "module_no": 6,
+      "question_count": 5
+    },
+    {
+      "id": "m6_initializer",
+      "name": "Initializer",
+      "node_type": "concept",
+      "concept_tag": "initializer",
+      "module_no": 6,
+      "question_count": 10
+    },
+    {
+      "id": "m6_tracing",
+      "name": "Tracing",
+      "node_type": "concept",
+      "concept_tag": "tracing",
+      "module_no": 6,
+      "question_count": 10
+    },
+    {
+      "id": "m6_traversal",
+      "name": "Traversal",
+      "node_type": "concept",
+      "concept_tag": "traversal",
+      "module_no": 6,
+      "question_count": 5
+    },
+    {
+      "id": "m7_method_basics",
+      "name": "Method Basics",
+      "node_type": "concept",
+      "concept_tag": "method_basics",
+      "module_no": 7,
+      "question_count": 12
+    },
+    {
+      "id": "m7_method_scope",
+      "name": "Method Scope",
+      "node_type": "concept",
+      "concept_tag": "method_scope",
+      "module_no": 7,
+      "question_count": 5
+    },
+    {
+      "id": "m7_overloading",
+      "name": "Overloading",
+      "node_type": "concept",
+      "concept_tag": "overloading",
+      "module_no": 7,
+      "question_count": 11
+    },
+    {
+      "id": "m7_parameters",
+      "name": "Parameters",
+      "node_type": "concept",
+      "concept_tag": "parameters",
+      "module_no": 7,
+      "question_count": 11
+    },
+    {
+      "id": "m7_pass_by_value",
+      "name": "Pass By Value",
+      "node_type": "concept",
+      "concept_tag": "pass_by_value",
+      "module_no": 7,
+      "question_count": 10
+    },
+    {
+      "id": "m7_recursion",
+      "name": "Recursion",
+      "node_type": "concept",
+      "concept_tag": "recursion",
+      "module_no": 7,
+      "question_count": 10
+    },
+    {
+      "id": "m7_return",
+      "name": "Return",
+      "node_type": "concept",
+      "concept_tag": "return",
+      "module_no": 7,
+      "question_count": 12
+    },
+    {
+      "id": "m7_static_methods",
+      "name": "Static Methods",
+      "node_type": "concept",
+      "concept_tag": "static_methods",
+      "module_no": 7,
+      "question_count": 10
+    },
+    {
+      "id": "m7_tracing",
+      "name": "Tracing",
+      "node_type": "concept",
+      "concept_tag": "tracing",
+      "module_no": 7,
+      "question_count": 14
+    },
+    {
+      "id": "m7_varargs",
+      "name": "Varargs",
+      "node_type": "concept",
+      "concept_tag": "varargs",
+      "module_no": 7,
+      "question_count": 5
+    },
+    {
+      "id": "m8_class_basics",
+      "name": "Class Basics",
+      "node_type": "concept",
+      "concept_tag": "class_basics",
+      "module_no": 8,
+      "question_count": 10
+    },
+    {
+      "id": "m8_constructors",
+      "name": "Constructors",
+      "node_type": "concept",
+      "concept_tag": "constructors",
+      "module_no": 8,
+      "question_count": 10
+    },
+    {
+      "id": "m8_encapsulation",
+      "name": "Encapsulation",
+      "node_type": "concept",
+      "concept_tag": "encapsulation",
+      "module_no": 8,
+      "question_count": 10
+    },
+    {
+      "id": "m8_fields_methods",
+      "name": "Fields Methods",
+      "node_type": "concept",
+      "concept_tag": "fields_methods",
+      "module_no": 8,
+      "question_count": 10
+    },
+    {
+      "id": "m8_object_creation",
+      "name": "Object Creation",
+      "node_type": "concept",
+      "concept_tag": "object_creation",
+      "module_no": 8,
+      "question_count": 10
+    },
+    {
+      "id": "m8_object_methods",
+      "name": "Object Methods",
+      "node_type": "concept",
+      "concept_tag": "object_methods",
+      "module_no": 8,
+      "question_count": 10
+    },
+    {
+      "id": "m8_references",
+      "name": "References",
+      "node_type": "concept",
+      "concept_tag": "references",
+      "module_no": 8,
+      "question_count": 10
+    },
+    {
+      "id": "m8_static_members",
+      "name": "Static Members",
+      "node_type": "concept",
+      "concept_tag": "static_members",
+      "module_no": 8,
+      "question_count": 10
+    },
+    {
+      "id": "m8_this_keyword",
+      "name": "This Keyword",
+      "node_type": "concept",
+      "concept_tag": "this_keyword",
+      "module_no": 8,
+      "question_count": 10
+    },
+    {
+      "id": "m8_tracing",
+      "name": "Tracing",
+      "node_type": "concept",
+      "concept_tag": "tracing",
+      "module_no": 8,
+      "question_count": 10
+    },
+    {
+      "id": "m9_abstract",
+      "name": "Abstract",
+      "node_type": "concept",
+      "concept_tag": "abstract",
+      "module_no": 9,
+      "question_count": 10
+    },
+    {
+      "id": "m9_casting_objects",
+      "name": "Casting Objects",
+      "node_type": "concept",
+      "concept_tag": "casting_objects",
+      "module_no": 9,
+      "question_count": 10
+    },
+    {
+      "id": "m9_constructor_order",
+      "name": "Constructor Order",
+      "node_type": "concept",
+      "concept_tag": "constructor_order",
+      "module_no": 9,
+      "question_count": 10
+    },
+    {
+      "id": "m9_extends",
+      "name": "Extends",
+      "node_type": "concept",
+      "concept_tag": "extends",
+      "module_no": 9,
+      "question_count": 7
+    },
+    {
+      "id": "m9_inheritance_access",
+      "name": "Inheritance Access",
+      "node_type": "concept",
+      "concept_tag": "inheritance_access",
+      "module_no": 9,
+      "question_count": 10
+    },
+    {
+      "id": "m9_inheritance_types",
+      "name": "Inheritance Types",
+      "node_type": "concept",
+      "concept_tag": "inheritance_types",
+      "module_no": 9,
+      "question_count": 10
+    },
+    {
+      "id": "m9_is_a",
+      "name": "Is A",
+      "node_type": "concept",
+      "concept_tag": "is_a",
+      "module_no": 9,
+      "question_count": 1
+    },
+    {
+      "id": "m9_object_class",
+      "name": "Object Class",
+      "node_type": "concept",
+      "concept_tag": "object_class",
+      "module_no": 9,
+      "question_count": 10
+    },
+    {
+      "id": "m9_overriding",
+      "name": "Overriding",
+      "node_type": "concept",
+      "concept_tag": "overriding",
+      "module_no": 9,
+      "question_count": 10
+    },
+    {
+      "id": "m9_super",
+      "name": "Super",
+      "node_type": "concept",
+      "concept_tag": "super",
+      "module_no": 9,
+      "question_count": 10
+    },
+    {
+      "id": "m9_terminology",
+      "name": "Terminology",
+      "node_type": "concept",
+      "concept_tag": "terminology",
+      "module_no": 9,
+      "question_count": 2
+    },
+    {
+      "id": "m9_tracing",
+      "name": "Tracing",
+      "node_type": "concept",
+      "concept_tag": "tracing",
+      "module_no": 9,
+      "question_count": 10
+    },
+    {
+      "id": "m10_abstract_poly",
+      "name": "Abstract Poly",
+      "node_type": "concept",
+      "concept_tag": "abstract_poly",
+      "module_no": 10,
+      "question_count": 10
+    },
+    {
+      "id": "m10_casting_poly",
+      "name": "Casting Poly",
+      "node_type": "concept",
+      "concept_tag": "casting_poly",
+      "module_no": 10,
+      "question_count": 10
+    },
+    {
+      "id": "m10_interfaces",
+      "name": "Interfaces",
+      "node_type": "concept",
+      "concept_tag": "interfaces",
+      "module_no": 10,
+      "question_count": 10
+    },
+    {
+      "id": "m10_non_polymorphic",
+      "name": "Non Polymorphic",
+      "node_type": "concept",
+      "concept_tag": "non_polymorphic",
+      "module_no": 10,
+      "question_count": 10
+    },
+    {
+      "id": "m10_overloading",
+      "name": "Overloading",
+      "node_type": "concept",
+      "concept_tag": "overloading",
+      "module_no": 10,
+      "question_count": 10
+    },
+    {
+      "id": "m10_overriding",
+      "name": "Overriding",
+      "node_type": "concept",
+      "concept_tag": "overriding",
+      "module_no": 10,
+      "question_count": 10
+    },
+    {
+      "id": "m10_poly_usage",
+      "name": "Poly Usage",
+      "node_type": "concept",
+      "concept_tag": "poly_usage",
+      "module_no": 10,
+      "question_count": 10
+    },
+    {
+      "id": "m10_polymorphism",
+      "name": "Polymorphism",
+      "node_type": "concept",
+      "concept_tag": "polymorphism",
+      "module_no": 10,
+      "question_count": 10
+    },
+    {
+      "id": "m10_reference_types",
+      "name": "Reference Types",
+      "node_type": "concept",
+      "concept_tag": "reference_types",
+      "module_no": 10,
+      "question_count": 10
+    },
+    {
+      "id": "m10_tracing",
+      "name": "Tracing",
+      "node_type": "concept",
+      "concept_tag": "tracing",
+      "module_no": 10,
+      "question_count": 10
+    }
+  ],
+  "edges": [
+    {
+      "from": "module_1",
+      "to": "m1_assignment",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_1",
+      "to": "m1_constants",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_1",
+      "to": "m1_declaration",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_1",
+      "to": "m1_default_values",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_1",
+      "to": "m1_initialization",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_1",
+      "to": "m1_naming",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_1",
+      "to": "m1_naming_convention",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_1",
+      "to": "m1_reassignment",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_1",
+      "to": "m1_scope",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_1",
+      "to": "m1_shadowing",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_1",
+      "to": "m1_type_inference",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_1",
+      "to": "m1_variable_types",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_2",
+      "to": "m2_boolean_type",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_2",
+      "to": "m2_casting",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_2",
+      "to": "m2_char_type",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_2",
+      "to": "m2_floating_point",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_2",
+      "to": "m2_integer_types",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_2",
+      "to": "m2_literals",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_2",
+      "to": "m2_overflow",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_2",
+      "to": "m2_precision",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_2",
+      "to": "m2_primitive_types",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_2",
+      "to": "m2_promotion",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_2",
+      "to": "m2_string_type",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_2",
+      "to": "m2_wrappers",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_3",
+      "to": "m3_arithmetic",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_3",
+      "to": "m3_bitwise",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_3",
+      "to": "m3_compound",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_3",
+      "to": "m3_concat",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_3",
+      "to": "m3_increment",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_3",
+      "to": "m3_logical",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_3",
+      "to": "m3_precedence",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_3",
+      "to": "m3_relational",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_3",
+      "to": "m3_ternary",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_4",
+      "to": "m4_conditions",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_4",
+      "to": "m4_else_if",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_4",
+      "to": "m4_fallthrough",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_4",
+      "to": "m4_if_else",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_4",
+      "to": "m4_modern_switch",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_4",
+      "to": "m4_nested_if",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_4",
+      "to": "m4_pitfalls",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_4",
+      "to": "m4_structure",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_4",
+      "to": "m4_switch",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_4",
+      "to": "m4_tracing",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_5",
+      "to": "m5_break_continue",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_5",
+      "to": "m5_choice",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_5",
+      "to": "m5_do_while",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_5",
+      "to": "m5_enhanced_for",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_5",
+      "to": "m5_for_loop",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_5",
+      "to": "m5_infinite_loop",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_5",
+      "to": "m5_nested_loops",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_5",
+      "to": "m5_off_by_one",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_5",
+      "to": "m5_patterns",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_5",
+      "to": "m5_string_loop",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_5",
+      "to": "m5_tracing",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_5",
+      "to": "m5_while_loop",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_6",
+      "to": "m6_array_2d",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_6",
+      "to": "m6_array_algorithms",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_6",
+      "to": "m6_array_declaration",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_6",
+      "to": "m6_array_length",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_6",
+      "to": "m6_array_methods",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_6",
+      "to": "m6_array_reference",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_6",
+      "to": "m6_arrays_class",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_6",
+      "to": "m6_default_values",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_6",
+      "to": "m6_indexing",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_6",
+      "to": "m6_initializer",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_6",
+      "to": "m6_tracing",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_6",
+      "to": "m6_traversal",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_7",
+      "to": "m7_method_basics",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_7",
+      "to": "m7_method_scope",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_7",
+      "to": "m7_overloading",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_7",
+      "to": "m7_parameters",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_7",
+      "to": "m7_pass_by_value",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_7",
+      "to": "m7_recursion",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_7",
+      "to": "m7_return",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_7",
+      "to": "m7_static_methods",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_7",
+      "to": "m7_tracing",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_7",
+      "to": "m7_varargs",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_8",
+      "to": "m8_class_basics",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_8",
+      "to": "m8_constructors",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_8",
+      "to": "m8_encapsulation",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_8",
+      "to": "m8_fields_methods",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_8",
+      "to": "m8_object_creation",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_8",
+      "to": "m8_object_methods",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_8",
+      "to": "m8_references",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_8",
+      "to": "m8_static_members",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_8",
+      "to": "m8_this_keyword",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_8",
+      "to": "m8_tracing",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_9",
+      "to": "m9_abstract",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_9",
+      "to": "m9_casting_objects",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_9",
+      "to": "m9_constructor_order",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_9",
+      "to": "m9_extends",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_9",
+      "to": "m9_inheritance_access",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_9",
+      "to": "m9_inheritance_types",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_9",
+      "to": "m9_is_a",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_9",
+      "to": "m9_object_class",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_9",
+      "to": "m9_overriding",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_9",
+      "to": "m9_super",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_9",
+      "to": "m9_terminology",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_9",
+      "to": "m9_tracing",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_10",
+      "to": "m10_abstract_poly",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_10",
+      "to": "m10_casting_poly",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_10",
+      "to": "m10_interfaces",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_10",
+      "to": "m10_non_polymorphic",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_10",
+      "to": "m10_overloading",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_10",
+      "to": "m10_overriding",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_10",
+      "to": "m10_poly_usage",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_10",
+      "to": "m10_polymorphism",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_10",
+      "to": "m10_reference_types",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_10",
+      "to": "m10_tracing",
+      "relation": "contains_concept"
+    },
+    {
+      "from": "module_1",
+      "to": "module_2",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "module_2",
+      "to": "module_3",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "module_3",
+      "to": "module_4",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "module_4",
+      "to": "module_5",
+      "relation": "related"
+    },
+    {
+      "from": "module_5",
+      "to": "module_6",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "module_1",
+      "to": "module_7",
+      "relation": "related"
+    },
+    {
+      "from": "module_7",
+      "to": "module_8",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "module_8",
+      "to": "module_9",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "module_9",
+      "to": "module_10",
+      "relation": "related"
+    },
+    {
+      "from": "m1_declaration",
+      "to": "m1_initialization",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m1_initialization",
+      "to": "m1_assignment",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m1_assignment",
+      "to": "m1_reassignment",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m1_declaration",
+      "to": "m1_naming",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m1_naming",
+      "to": "m1_naming_convention",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m1_initialization",
+      "to": "m1_constants",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m1_declaration",
+      "to": "m1_default_values",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m1_declaration",
+      "to": "m1_variable_types",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m1_variable_types",
+      "to": "m1_type_inference",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m1_declaration",
+      "to": "m1_scope",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m1_scope",
+      "to": "m1_shadowing",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m2_primitive_types",
+      "to": "m2_integer_types",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m2_primitive_types",
+      "to": "m2_floating_point",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m2_primitive_types",
+      "to": "m2_char_type",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m2_primitive_types",
+      "to": "m2_boolean_type",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m2_integer_types",
+      "to": "m2_overflow",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m2_floating_point",
+      "to": "m2_precision",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m2_primitive_types",
+      "to": "m2_literals",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m2_primitive_types",
+      "to": "m2_casting",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m2_casting",
+      "to": "m2_promotion",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m2_primitive_types",
+      "to": "m2_wrappers",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m2_char_type",
+      "to": "m2_string_type",
+      "relation": "related"
+    },
+    {
+      "from": "m3_arithmetic",
+      "to": "m3_increment",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m3_arithmetic",
+      "to": "m3_compound",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m3_arithmetic",
+      "to": "m3_precedence",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m3_relational",
+      "to": "m3_logical",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m3_relational",
+      "to": "m3_ternary",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m3_arithmetic",
+      "to": "m3_concat",
+      "relation": "related"
+    },
+    {
+      "from": "m3_logical",
+      "to": "m3_bitwise",
+      "relation": "related"
+    },
+    {
+      "from": "m4_conditions",
+      "to": "m4_if_else",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m4_if_else",
+      "to": "m4_else_if",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m4_if_else",
+      "to": "m4_nested_if",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m4_conditions",
+      "to": "m4_switch",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m4_switch",
+      "to": "m4_fallthrough",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m4_switch",
+      "to": "m4_modern_switch",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m5_while_loop",
+      "to": "m5_do_while",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m5_for_loop",
+      "to": "m5_enhanced_for",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m5_for_loop",
+      "to": "m5_nested_loops",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m5_nested_loops",
+      "to": "m5_patterns",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m5_while_loop",
+      "to": "m5_infinite_loop",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m5_for_loop",
+      "to": "m5_off_by_one",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m5_for_loop",
+      "to": "m5_break_continue",
+      "relation": "related"
+    },
+    {
+      "from": "m5_for_loop",
+      "to": "m5_string_loop",
+      "relation": "related"
+    },
+    {
+      "from": "m6_array_declaration",
+      "to": "m6_initializer",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m6_array_declaration",
+      "to": "m6_indexing",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m6_indexing",
+      "to": "m6_array_length",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m6_array_length",
+      "to": "m6_traversal",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m6_traversal",
+      "to": "m6_array_algorithms",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m6_array_declaration",
+      "to": "m6_array_reference",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m6_array_declaration",
+      "to": "m6_array_2d",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m6_array_declaration",
+      "to": "m6_default_values",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m6_traversal",
+      "to": "m6_arrays_class",
+      "relation": "related"
+    },
+    {
+      "from": "m6_array_reference",
+      "to": "m6_array_methods",
+      "relation": "related"
+    },
+    {
+      "from": "m7_method_basics",
+      "to": "m7_parameters",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m7_parameters",
+      "to": "m7_return",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m7_parameters",
+      "to": "m7_pass_by_value",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m7_method_basics",
+      "to": "m7_method_scope",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m7_method_basics",
+      "to": "m7_overloading",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m7_method_basics",
+      "to": "m7_static_methods",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m7_parameters",
+      "to": "m7_varargs",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m7_return",
+      "to": "m7_recursion",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m8_class_basics",
+      "to": "m8_fields_methods",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m8_class_basics",
+      "to": "m8_constructors",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m8_constructors",
+      "to": "m8_object_creation",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m8_class_basics",
+      "to": "m8_this_keyword",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m8_class_basics",
+      "to": "m8_encapsulation",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m8_object_creation",
+      "to": "m8_references",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m8_class_basics",
+      "to": "m8_static_members",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m8_object_creation",
+      "to": "m8_object_methods",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m9_extends",
+      "to": "m9_inheritance_types",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m9_extends",
+      "to": "m9_is_a",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m9_extends",
+      "to": "m9_super",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m9_super",
+      "to": "m9_constructor_order",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m9_extends",
+      "to": "m9_overriding",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m9_extends",
+      "to": "m9_inheritance_access",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m9_extends",
+      "to": "m9_abstract",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m9_extends",
+      "to": "m9_object_class",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m9_extends",
+      "to": "m9_casting_objects",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m9_extends",
+      "to": "m9_terminology",
+      "relation": "related"
+    },
+    {
+      "from": "m10_overriding",
+      "to": "m10_polymorphism",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m10_reference_types",
+      "to": "m10_polymorphism",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m10_polymorphism",
+      "to": "m10_poly_usage",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m10_polymorphism",
+      "to": "m10_abstract_poly",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m10_polymorphism",
+      "to": "m10_casting_poly",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m10_polymorphism",
+      "to": "m10_non_polymorphic",
+      "relation": "related"
+    },
+    {
+      "from": "m10_polymorphism",
+      "to": "m10_interfaces",
+      "relation": "related"
+    },
+    {
+      "from": "m3_relational",
+      "to": "m4_conditions",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m4_conditions",
+      "to": "m5_while_loop",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m5_for_loop",
+      "to": "m6_traversal",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m1_scope",
+      "to": "m7_method_scope",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m7_parameters",
+      "to": "m8_constructors",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m8_class_basics",
+      "to": "m9_extends",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m9_overriding",
+      "to": "m10_overriding",
+      "relation": "prerequisite"
+    },
+    {
+      "from": "m7_overloading",
+      "to": "m10_overloading",
+      "relation": "related"
+    },
+    {
+      "from": "m2_casting",
+      "to": "m9_casting_objects",
+      "relation": "related"
+    },
+    {
+      "from": "m1_default_values",
+      "to": "m6_default_values",
+      "relation": "related"
+    },
+    {
+      "from": "m6_array_reference",
+      "to": "m8_references",
+      "relation": "related"
+    }
+  ]
+}

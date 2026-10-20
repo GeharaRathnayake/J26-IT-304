@@ -30,3 +30,9 @@ models/**/*.pth
 
 # Agent Instructions
 AGENTS.md
+
+# Local quiz databases, generated questions, and backups
+*.db
+generated_questions/
+*_backup*.py
+*_backup*.db
