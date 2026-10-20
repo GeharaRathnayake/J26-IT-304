@@ -1,5 +1,0 @@
-System,Accuracy,Precision,Recall,F1 (confused),Macro F1
-Majority class,0.5972,0.5972,1.0,0.7478,0.3739
-Stratified random (seed 42),0.4583,0.5441,0.5736,0.5585,0.4289
-Length-only LR,0.6759,0.6746,0.8837,0.7651,0.6214
-TF-IDF + LR,0.6898,0.7095,0.814,0.7581,0.6629

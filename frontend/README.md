@@ -1,5 +1,6 @@
-# Java AI Tutor — Frontend
+# Java AI Tutor — Frontend (Outdated, adjust according to what's currently in backend folder and rewrite this file as well.)
 
+<!--
 PP1 tutoring UI for the **Adaptive AI Voice Tutor for Java Programming** component of J26-IT-304 (SLIIT).
 
 Plan and decisions live in [`../../frontendPlan/`](../../frontendPlan/). `10_DECISIONS.md` is the authority on open questions.
@@ -100,3 +101,5 @@ Three things must survive the Express hop unchanged:
 3. `meta.latency_ms` stays the tutor service's own figures. If you add Express
    hop latency, use a separate field — overwriting makes the NFR evidence wrong
    in a direction that flatters us.
+
+-->

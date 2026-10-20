@@ -1,0 +1,173 @@
+
+"""
+ask.py - curriculum-aware RAG answer: ChromaDB (gated) -> local Qwen via llama-server.
+
+Start llama-server first (port 8081), then from C:\\4y1s\\rag-project:
+    python scripts\\ask.py "What is a constructor in Java?" --completed lec1,lec2
+    python scripts\\ask.py "What is a constructor in Java?" --completed lec1
+    python scripts\\ask.py "What is a constructor in Java?" --no-gate (baseline)
+"""
+import argparse
+import json
+import time
+import urllib.request
+
+from retrieval import retrieve, check_scope, content_margin, CONTENT_MARGIN
+
+LLAMA_URL = "http://127.0.0.1:8081/v1/chat/completions"
+
+SYSTEM_PROMPT = """You are a Java programming tutor for a university course.
+Answer ONLY using the lecture notes provided in the CONTEXT. Do not use outside knowledge
+to add facts that are not in the context. If the context does not contain the answer, reply with
+exactly the single word NOT_IN_CONTEXT and nothing else.
+Keep the answer short and clear. If you show Java code, keep it consistent with the context.
+If the lecture notes differ from current Java practice, explain what the lecture teaches.
+End with the slides you used, in the form: Sources: lec1 slide 13, lec2 slide 34."""
+
+
+def build_context(chunks):
+    parts = []
+    for c in chunks:
+        parts.append(
+            f"[{c['lecture_id']} slide {c['slide_number']}: {c['topic']}]\n{c['text']}"
+        )
+    return "\n\n---\n\n".join(parts)
+
+
+def call_qwen(question, context):
+    payload = {
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": f"CONTEXT:\n{context}\n\nQUESTION: {question}",
+            },
+        ],
+        "temperature": 0.2,
+        "max_tokens": 400,
+    }
+    req = urllib.request.Request(
+        LLAMA_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    return data["choices"][0]["message"]["content"]
+
+
+
+def decide(question, completed, gate=True, k=3):
+    """
+    Make the curriculum decision without calling Qwen, so tests can reuse it.
+    decision: "answer" | "locked" | "not_covered"
+    """
+    result = retrieve(question, completed, gate=gate, n_results=k)
+    best = min((c["distance"] for c in result["chunks"]), default=None)
+    scope = None
+
+    # Check curriculum scope when the gate is enabled.
+    if gate:
+        scope = check_scope(question, completed)
+
+        if scope["scope"] == "locked":
+            margin = content_margin(question, completed)
+
+            if margin is None or margin < CONTENT_MARGIN:
+                return {
+                    "decision": "locked",
+                    "lecture_id": scope["lecture_id"],
+                    "result": result,
+                    "best": best,
+                    "scope": scope,
+                }
+
+    if result["status"] != "ok":
+        return {
+            "decision": "not_covered",
+            "lecture_id": None,
+            "result": result,
+            "best": best,
+            "scope": scope,
+        }
+
+    return {
+        "decision": "answer",
+        "lecture_id": None,
+        "result": result,
+        "best": best,
+        "scope": scope,
+    }
+
+
+
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("question")
+    ap.add_argument(
+        "--completed",
+        default="",
+        help="comma-separated completed lectures, e.g. lec1,lec2",
+    )
+    ap.add_argument(
+        "--no-gate",
+        action="store_true",
+        help="unrestricted baseline (gate OFF)",
+    )
+    ap.add_argument(
+        "-k",
+        type=int,
+        default=3,
+        help="number of chunks to retrieve",
+    )
+    args = ap.parse_args()
+
+    completed = [x.strip() for x in args.completed.split(",") if x.strip()]
+    t0 = time.time()
+    d = decide(args.question, completed, gate=not args.no_gate, k=args.k)
+    result, best, scope = d["result"], d["best"], d["scope"]
+
+    print(f"\nGate: {'OFF' if args.no_gate else 'ON'} | completed: {completed}")
+    print(
+        f"Retrieval: {result['status']} {result['reason']}"
+        + (f" | best distance {best:.3f}" if best is not None else "")
+    )
+
+    for c in result["chunks"]:
+        print(
+            f"  {c['lecture_id']} slide {c['slide_number']} "
+            f"| {c['topic']} | {c['distance']:.3f}"
+        )
+
+    if scope:
+        locked_distance = scope["best_locked"]
+        print(
+            f"Scope check: {scope['scope']} "
+            f"(allowed {scope['best_allowed']:.3f}, "
+            f"locked {locked_distance})"
+        )
+
+    if d["decision"] == "locked":
+        print(
+            f"\nAnswer: This topic is covered in {d['lecture_id']}, "
+            "which you have not completed yet."
+        )
+        return
+
+    if d["decision"] == "not_covered":
+        print("\nAnswer: This is not covered in the lectures you have completed.")
+        return
+
+    answer = call_qwen(args.question, build_context(result["chunks"]))
+    if answer.strip().startswith("NOT_IN_CONTEXT"):
+        print("\nAnswer: This is not covered in the lectures you have completed.")
+        return
+
+    print(f"\nAnswer:\n{answer}")
+    print(f"\n(total time {time.time() - t0:.1f}s)")
+
+
+if __name__ == "__main__":
+    main()

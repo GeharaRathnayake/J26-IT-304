@@ -5,8 +5,8 @@
   "type": "module",
   "description": "Adaptive AI Voice Tutor for Java Programming - PP1 tutoring UI (J26-IT-304)",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "dev": "node init && vite",
+    "build": "node init && tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
