@@ -918,25 +918,25 @@ def build_prompt(
         )
 
 
-    elif target_concept == "declaration":
-        if question_number % 2 == 1:
-            concept_rule = (
-                "Use question form A: ask which declaration compiles successfully in Java. "
-                "The correct answer must be one valid declaration. All three wrong answers must have definite compile-time errors. "
-                "Possible errors include assigning a String literal to int, using single quotes for a String literal, or assigning a double-quoted String to char. "
-                "Use different variable names and values in each question. "
-                "Check every option independently. Exactly one option must compile."
-            )
-        else:
-            concept_rule = (
-                "Use question form B: ask which declaration causes a compile-time error. "
-                "The correct answer must be one invalid declaration, and all three wrong answers must compile successfully. "
-                "For example, a String declaration using single quotes is invalid. Valid alternatives can include int count = 10;, double price = 9.99;, and char grade = 'A';. "
-                "Do not use int x = 'a'; as an invalid declaration because it is valid Java. "
-                "Check every option independently. Exactly one option must fail compilation. "
-                "Do not use the generic stem 'Which declaration is valid Java?' for this question form."
-            )
 
+
+    elif target_concept == "declaration":
+        concept_rule = (
+            "Test Java variable declaration and initialization. "
+            "Ask the learner to select the one valid Java variable "
+            "declaration. Provide exactly four distinct options: "
+            "one must compile and three must have definite Java "
+            "compile-time errors. Use short beginner-level examples "
+            "involving primitive or String types. Vary the type, "
+            "initializer, variable name, and natural stem wording "
+            "while preserving this question format. Do not ask the "
+            "learner to identify an incorrect option or fix a broken "
+            "line. Check every option independently against Java "
+            "rules. Avoid ambiguous conversions, multiple correct "
+            "answers, duplicate options, and options differing only "
+            "by variable name or option order. Ensure the answer "
+            "and explanation match the actual Java rules."
+        )
     else:
         concept_rule = (
             "Stay tightly focused on the requested concept. Do not substitute "
@@ -963,10 +963,10 @@ CONCEPT RULE:
 QUESTION STYLE:
 {style}
 
-RECENT QUESTION STEMS — DO NOT REPEAT:
+RECENT QUESTION STEMS â€” DO NOT REPEAT:
 {json.dumps(recent_stems, ensure_ascii=False)}
 
-PREVIOUS VALIDATION ERRORS — FIX THEM:
+PREVIOUS VALIDATION ERRORS â€” FIX THEM:
 {errors_text}
 
 
@@ -1052,6 +1052,79 @@ Return exactly one question inside a JSON array.
 # ============================================================
 # GENERATE ONE BATCH
 
+def build_initialization_fallback(question_number):
+    """Build compiler-checkable questions about local-variable initialization."""
+    variable = f"quizInit{random.randint(10000, 99999)}"
+    value = 3 + (question_number % 90)
+    next_value = value + 2
+
+    stems = [
+        "Which code fragment produces a compile-time error when {v} is read before initialization?",
+        "Select the Java snippet that causes a compile-time error because {v} is read before any assignment.",
+        "Identify the option that raises a compile-time error when {v} is used before receiving an initial value.",
+        "In which code sample is {v} read before assignment, causing a compile-time error?",
+        "Find the Java fragment with a compile-time error from printing {v} before initialization.",
+        "Choose the code block that causes a compile-time error by displaying {v} before it has a value.",
+        "A compile-time error occurs in one example because {v} is read too early; which option is it?",
+        "To locate the compile-time error, choose the snippet that reads {v} before the variable is assigned.",
+        "The compiler rejects one fragment at compile time because {v} is used before initialization; which one?",
+        "Among these code fragments, which causes a compile-time error because {v} is read before assignment?",
+        "Your task is to find the code that produces a compile-time error when {v} is printed before initialization.",
+        "When {v} is read while uninitialized, Java reports a compile-time error; identify that code fragment.",
+        "Which option contains a compile-time error caused by reading {v} before assigning its first value?",
+        "Pick the code sample that produces a compile-time error because {v} has not been initialized when read.",
+        "From the following Java snippets, choose the one that triggers a compile-time error by accessing {v} before assignment.",
+        "One of these examples fails at compile time because {v} is printed before initialization; select it.",
+        "Locate the Java fragment in which reading {v} too early leads to a compile-time error.",
+        "Consider the four snippets: which one causes a compile-time error by reading {v} before initialization?",
+        "Review each code choice and identify the compile-time error caused by accessing {v} before assignment.",
+        "Can you identify the code that causes a compile-time error because {v} is read before its initial value is set?",
+        "Determine which fragment has a compile-time error because local variable {v} is read before any assignment.",
+        "Compare the options and select the one that triggers a compile-time error when {v} is used before initialization.",
+        "Java rejects one of these snippets at compile time because {v} is printed before being assigned; which one?",
+        "Which example triggers an error at compile time when local variable {v} is read without prior assignment?",
+        "A local variable must be initialized before it is read; select the snippet with a compile-time error for {v}.",
+        "Choose the code option that the compiler rejects for reading {v} before it receives a value.",
+        "Identify the snippet where {v} is accessed prior to initialization and produces a compile-time error.",
+        "Here are four Java code options; which causes a compile-time error by printing {v} before assignment?",
+        "Find the only fragment with a compile-time error due to {v} being read while still uninitialized.",
+        "Read the following choices and select the one in which using {v} early causes a compile-time error.",
+    ]
+
+    stem = stems[(question_number - 1) % len(stems)].format(v=variable)
+
+    valid_options = [
+        f"int {variable}; {variable} = {value}; System.out.println({variable});",
+        f"int {variable} = {value}; System.out.println({variable});",
+        f"int {variable}; {variable} = {value}; {variable} = {next_value}; System.out.println({variable});",
+    ]
+    invalid_option = f"int {variable}; System.out.println({variable});"
+
+    choices = [(item, False) for item in valid_options]
+    choices.append((invalid_option, True))
+    random.shuffle(choices)
+
+    options = {}
+    answer = None
+    for label, (text, causes_error) in zip("ABCD", choices):
+        options[label] = text
+        if causes_error:
+            answer = label
+
+    return {
+        "stem": stem,
+        "concept_tag": "initialization",
+        "explanation": (
+            "Java requires a local variable to be definitely assigned before "
+            "it is read. The marked snippet reads the variable before any "
+            "assignment, so it causes a compile-time error; the other snippets "
+            "assign a value before reading it."
+        ),
+        "options": options,
+        "answer": answer,
+    }
+
+
 def build_declaration_fallback(question_number):
     """Build varied declaration questions using explicit Java rules."""
     types = [
@@ -1099,6 +1172,29 @@ def build_declaration_fallback(question_number):
         "Choose the Java declaration accepted by the compiler for {v} of type {kind}.",
         "Given a variable named {v} with type {kind}, choose a declaration that compiles.",
         "To initialize {v} as a {kind}, which Java statement is valid?",
+        "Which code line declares {v} as type {kind} and gives it a compatible initial value?",
+        "Select the compiling Java statement that declares {v} as a {kind}.",
+        "Which code example gives variable {v} a valid {kind} initializer?",
+        "Find the variable declaration that correctly matches {v}'s {kind} type.",
+        "Which declaration statement uses an appropriate literal for variable {v} of type {kind}?",
+        "Choose the code line where the declared type and initial value for {v} are compatible.",
+        "Which Java variable declaration is legal for the {kind} variable named {v}?",
+        "Identify the statement that can compile when declaring {v} as type {kind}.",
+        "For a {kind} variable called {v}, which initialization declaration is type-correct?",
+        "Which option uses valid Java syntax to declare and initialize {v} as a {kind}?",
+        "Pick the variable declaration whose initial value is accepted for {v} with type {kind}.",
+        "Which of these code lines initializes {v} with a compatible value for type {kind}?",
+        "Choose the declaration that assigns a valid initial value to variable {v} of type {kind}.",
+        "Which statement correctly pairs the type {kind} with the initializer for variable {v}?",
+        "Find the Java code snippet that properly declares {v} with type {kind} and an initial value.",
+        "Select the syntactically valid variable declaration for {v} using Java type {kind}.",
+        "Which declaration gives {v} a legal initial value while keeping its type as {kind}?",
+        "For variable {v}, which line follows Java's type rules for a {kind} declaration?",
+        "Which choice is a valid declaration and initialization of {v} with the declared type {kind}?",
+        "Identify the code statement that initializes the {kind} variable {v} using a compatible value.",
+        "Which Java declaration avoids a type mismatch for {v}, declared as {kind}?",
+        "Choose the line in which variable {v} is declared as {kind} and initialized correctly.",
+        "Which option contains a valid declaration with the correct initializer type for {v}?",
     ]
 
     stem = stems[(question_number - 1) % len(stems)].format(
@@ -1156,19 +1252,27 @@ def generate_batch(
             (question_number - 1) % len(weak_concepts)
         ]
 
-        for attempt in range(1, MAX_RETRIES + 1):
+        retry_limit = 0 if target_concept in {"declaration", "initialization"} else MAX_RETRIES
+
+        for attempt in range(1, retry_limit + 1):
             temperature = min(
                 BASE_TEMPERATURE + TEMPERATURE_STEP * (attempt - 1),
                 MAX_TEMPERATURE,
             )
 
-            style = QUESTION_STYLES[
-                (question_number + attempt - 2) % len(QUESTION_STYLES)
-            ]
+            if target_concept == "declaration":
+                style = (
+                    "Choose the one valid Java variable declaration; "
+                    "exactly one option compiles and three have definite compile-time errors."
+                )
+            else:
+                style = QUESTION_STYLES[
+                    (question_number + attempt - 2) % len(QUESTION_STYLES)
+                ]
 
             print(
                 f"\nQuestion {question_number} [{target_concept}] "
-                f"— attempt {attempt}/{MAX_RETRIES}, "
+                f"â€” attempt {attempt}/{MAX_RETRIES}, "
                 f"temperature={temperature:.1f}"
             )
 
@@ -1287,8 +1391,13 @@ def generate_batch(
                 last_errors = [str(exc)]
                 print(f"\nAttempt failed: {exc}")
 
-        if accepted_question is None and target_concept == "declaration":
-            fallback = build_declaration_fallback(question_number)
+        if accepted_question is None and target_concept in {
+            "declaration", "initialization"
+        }:
+            if target_concept == "declaration":
+                fallback = build_declaration_fallback(question_number)
+            else:
+                fallback = build_initialization_fallback(question_number)
             comparison_bank = static_bank + accepted_questions + accepted_batch
 
             fallback_errors = run_local_checks(
@@ -1311,12 +1420,12 @@ def generate_batch(
                 if validated and not fallback_errors:
                     accepted_question = validated[0]
                     print(
-                        "\\nQwen retries failed; a rule-based declaration "
+                        "\nRule-based fallback "
                         "question passed all validators."
                     )
 
             if accepted_question is None:
-                print("Declaration fallback was also rejected:")
+                print("Rule-based fallback was also rejected:")
                 for error in fallback_errors:
                     print("  -", error)
 

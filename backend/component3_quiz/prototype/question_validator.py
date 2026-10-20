@@ -239,6 +239,20 @@ def _concept_alignment_errors(stem, concept):
 
 def _answer_explanation_consistency_errors(question):
     """Catch selected obvious contradictions between the answer and explanation."""
+    # Error-identification questions may intentionally mark invalid
+    # Java code as the correct answer.
+    stem = normalize_text(question.get("stem", ""))
+
+    if re.search(
+        r"compile[- ]?time error|compilation error|\berrors?\b|"
+        r"\b(?:does|do)(?:n't| not) compile|"
+        r"\b(?:will|would|can|could)(?:n't| not) compile|"
+        r"fails? to compile|\binvalid\b|\billegal\b|\bincorrect\b|"
+        r"\bnot (?:a )?(?:valid|legal|allowed)\b",
+        stem,
+        flags=re.IGNORECASE,
+    ):
+        return []
     options = question.get("options", {})
     answer = question.get("answer")
     explanation = normalize_text(question.get("explanation", ""))
