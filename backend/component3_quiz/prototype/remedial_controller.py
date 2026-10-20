@@ -45,7 +45,7 @@ def run_remedial_round(conn, learner_id, module_no, set_no, weak_tags):
         related_concepts = expand_weak_concepts(
             module_no=module_no,
             weak_tags=current_weak,
-            max_related=5,
+            max_related=2,
         )
 
         next_round = conn.execute(
@@ -138,7 +138,7 @@ def run_remedial_round(conn, learner_id, module_no, set_no, weak_tags):
                 or answer not in {"A", "B", "C", "D"}
                 or not isinstance(question.get("explanation"), str)
                 or not question["explanation"].strip()
-                or question.get("concept_tag") not in valid_concepts
+                or question.get("concept_tag") not in related_concepts
             ):
                 valid_batch = False
                 break

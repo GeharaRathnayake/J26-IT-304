@@ -1,6 +1,7 @@
-﻿import json
+import json
 from pathlib import Path
 from collections import defaultdict, deque
+from knowledge_graph import get_module
 
 BASE = Path(__file__).parent
 GRAPH_FILE = BASE / "java_concept_graph.json"
@@ -23,12 +24,13 @@ def find_concept_node(graph, module_no, concept_tag):
     return None
 
 
-def expand_weak_concepts(module_no, weak_tags, max_related=5):
+def expand_weak_concepts(module_no, weak_tags, max_related=2):
     """
     Return weak concepts first, followed by connected concepts
     in the same module. Does not modify the graph.
     """
     graph = load_graph()
+    valid_concepts = set(get_module(module_no).get('concepts', []))
     nodes = {
         node["id"]: node
         for node in graph["nodes"]
@@ -51,6 +53,8 @@ def expand_weak_concepts(module_no, weak_tags, max_related=5):
         if (
             source_node.get("node_type") != "concept"
             or target_node.get("node_type") != "concept"
+            or source_node.get("concept_tag") not in valid_concepts
+            or target_node.get("concept_tag") not in valid_concepts
         ):
             continue
 
@@ -60,15 +64,20 @@ def expand_weak_concepts(module_no, weak_tags, max_related=5):
         ):
             continue
 
-        adjacency[source].append(target)
-        adjacency[target].append(source)
+        if relation == "prerequisite":
+            # A source node is a prerequisite of its target node.
+            # For remedial selection, follow prerequisites backwards.
+            adjacency[target].append(source)
+        else:  # related concepts can be traversed in both directions.
+            adjacency[source].append(target)
+            adjacency[target].append(source)
 
     # Keep the original weak concepts in their input order.
     results = []
     seen_tags = set()
 
     for tag in weak_tags:
-        if tag not in seen_tags:
+        if tag in valid_concepts and tag not in seen_tags:
             results.append(tag)
             seen_tags.add(tag)
 
