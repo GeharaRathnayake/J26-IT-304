@@ -5,29 +5,245 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Adaptive Java Quiz</title>
 <style>
-:root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#202b3c;background:#f3f6fb}
-*{box-sizing:border-box}body{margin:0}.top{background:#172b4d;color:white;padding:24px max(20px,calc((100% - 960px)/2))}
-.top h1{margin:0 0 7px;font-size:26px}.top p{margin:0;color:#cbd7ec}
-main{max-width:960px;margin:28px auto;padding:0 18px}.panel{background:white;border:1px solid #e1e7f0;border-radius:14px;padding:24px;margin-bottom:18px;box-shadow:0 5px 18px #152b4d0a}
-h2{font-size:20px;margin:0 0 16px}label{display:block;font-weight:600;margin:12px 0 7px}
-input,select{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:8px;font-size:15px;background:white}
-button{border:0;border-radius:8px;background:#2459c4;color:white;font-weight:650;font-size:15px;padding:12px 18px;cursor:pointer}
-button:disabled{opacity:.5;cursor:wait}.secondary{background:#eaf0fb;color:#204b9d}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
-.muted{color:#68768a}.notice{padding:12px;border-radius:8px;background:#edf4ff;margin:12px 0}.error{background:#fff0f0;color:#a32626;padding:12px;border-radius:8px}
-.question{padding:18px 0;border-bottom:1px solid #e5eaf2}.question:last-child{border:0}
-.qtitle{font-weight:650;margin-bottom:12px}.option{display:flex;gap:10px;align-items:flex-start;border:1px solid #dce3ed;border-radius:8px;padding:11px;margin:8px 0;cursor:pointer;font-weight:400}
-.option input{width:auto;margin-top:3px}.option:has(input:checked){border-color:#2459c4;background:#f1f6ff}
-.result{padding:14px;border-radius:8px;margin:12px 0;background:#f2f5fa}.good{border-left:4px solid #278354}.bad{border-left:4px solid #c44b4b}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}.metric{background:#f4f7fc;border-radius:10px;padding:14px}.metric strong{display:block;font-size:23px;margin-top:5px}
-.hidden{display:none}.small{font-size:13px;line-height:1.5}
+
+:root {
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+  color: #172b4d;
+  background: #f2f8f8;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --navy: #142b4a;
+  --blue: #315fe9;
+  --cyan: #27c6c1;
+  --mint: #e7f8f5;
+  --muted: #718096;
+  --border: #e3ebf0;
+  --shadow: 0 12px 35px rgba(29, 57, 83, .07);
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse at 90% 0%, #e0f7f3 0, transparent 35%),
+    #f4f8fb;
+}
+.top {
+  color: white;
+  padding: 28px max(24px, calc((100% - 1120px)/2));
+  background: linear-gradient(120deg, #142b4a 0%, #1c4264 72%, #176c77 100%);
+  position: relative;
+  overflow: hidden;
+}
+.top::after {
+  content: "";
+  position: absolute;
+  width: 230px;
+  height: 230px;
+  border: 35px solid rgba(255,255,255,.055);
+  border-radius: 50%;
+  right: 8%;
+  top: -135px;
+}
+.top h1 { margin: 0 0 8px; font-size: clamp(26px, 4vw, 36px); letter-spacing: -.8px; }
+.top p { margin: 0; color: #d1e5ef; line-height: 1.6; }
+main { max-width: 1120px; margin: 30px auto 60px; padding: 0 22px; }
+.panel {
+  background: rgba(255,255,255,.96);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: clamp(20px, 3vw, 30px);
+  margin-bottom: 22px;
+  box-shadow: var(--shadow);
+}
+h2 { font-size: 22px; letter-spacing: -.35px; margin: 0 0 18px; }
+h3 { color: var(--navy); margin-top: 25px; }
+label { display: block; font-weight: 650; margin: 14px 0 8px; }
+input, select {
+  width: 100%; padding: 13px 14px; border: 1px solid #d6e1ea;
+  border-radius: 11px; font-size: 15px; background: #fbfdff;
+  color: var(--navy); outline: none; transition: .18s ease;
+}
+input:focus, select:focus {
+  border-color: var(--blue); box-shadow: 0 0 0 3px rgba(49,95,233,.12);
+}
+button {
+  border: 0; border-radius: 11px;
+  background: linear-gradient(135deg, #315fe9, #4679f4);
+  color: white; font-weight: 700; font-size: 14px;
+  padding: 13px 19px; cursor: pointer;
+  box-shadow: 0 5px 12px rgba(49,95,233,.17);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(49,95,233,.22); }
+button:disabled { opacity: .55; cursor: wait; }
+.secondary { background: #eaf2ff; color: #254ba8; box-shadow: none; }
+.actions { display: flex; gap: 11px; flex-wrap: wrap; margin-top: 20px; }
+.muted { color: var(--muted); }
+.notice { padding: 14px 16px; border-radius: 12px; background: #edf5ff; color: #25477c; margin: 14px 0; line-height: 1.6; }
+.error { background: #fff0f0; color: #a32626; padding: 14px 16px; border-radius: 12px; margin: 14px 0; }
+.question { padding: 22px 0; border-bottom: 1px solid var(--border); }
+.question:last-child { border: 0; }
+.qtitle { font-size: 17px; font-weight: 700; line-height: 1.65; margin-bottom: 14px; }
+.option {
+  display: flex; gap: 12px; align-items: flex-start;
+  border: 1px solid #dfe8ef; border-radius: 12px;
+  padding: 14px 15px; margin: 9px 0; cursor: pointer;
+  font-weight: 400; line-height: 1.55; background: #fff;
+  transition: border-color .15s ease, background .15s ease;
+}
+.option:hover { border-color: #9eb5f7; background: #f8faff; }
+.option:has(input:checked) { border-color: var(--blue); background: #eff4ff; }
+.option input { width: auto; margin: 4px 0 0; accent-color: var(--blue); }
+.option:has(input:disabled) { cursor: default; }
+.result { padding: 16px; border-radius: 12px; margin: 12px 0; background: #f3f6fa; line-height: 1.65; }
+.good { border-left: 4px solid #18a875; background: #edfaf4; }
+.bad { border-left: 4px solid #e15c65; background: #fff2f2; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 14px; }
+.metric {
+  background: linear-gradient(145deg, #f6f9ff, #f0f8f8);
+  border: 1px solid #e5edf4; border-radius: 15px; padding: 19px;
+  color: #718096; font-size: 13px; line-height: 1.5;
+}
+.metric strong { display: block; color: var(--navy); font-size: 25px; margin-top: 7px; letter-spacing: -.5px; overflow-wrap: anywhere; }
+.hidden { display: none !important; }
+.small { font-size: 13px; line-height: 1.6; }
+#quizMode { margin-top: -8px; margin-bottom: 18px; }
+#submit { min-width: 155px; }
+#progressData { line-height: 1.7; }
+#progressData .result { overflow-wrap: anywhere; }
+@media (min-width: 900px) {
+  main { margin-top: 34px; }
+  #quizPanel, #resultPanel, #progressPanel { padding: 30px 34px; }
+}
+@media (max-width: 600px) {
+  .top { padding: 24px 20px; }
+  main { padding: 0 13px; margin-top: 18px; }
+  .panel { border-radius: 16px; padding: 19px; }
+  .actions { flex-direction: column; }
+  .actions button { width: 100%; }
+  .metric strong { font-size: 22px; }
+}
+
+
+/* J-LISA dashboard layout */
+body { padding-left: 248px; }
+.sidebar {
+  position: fixed; inset: 0 auto 0 0; width: 248px; z-index: 10;
+  display: flex; flex-direction: column; padding: 26px 17px;
+  background: #fff; border-right: 1px solid #e4edf1;
+}
+.brand { display: flex; align-items: center; gap: 11px; padding: 0 8px 34px; }
+.brand-mark {
+  display: grid; place-items: center; width: 43px; height: 43px;
+  border-radius: 14px; color: white; font-size: 25px; font-weight: 800;
+  background: linear-gradient(140deg, #315fe9, #27c6c1);
+  box-shadow: 0 6px 15px #315fe92b;
+}
+.brand strong { display: block; font-size: 19px; letter-spacing: .7px; color: #172b4d; }
+.brand small { display: block; font-size: 8px; letter-spacing: 1px; color: #8190a3; margin-top: 3px; }
+.nav-label { font-size: 10px; font-weight: 800; letter-spacing: 1.3px; color: #98a5b4; padding: 0 12px 12px; }
+.nav-link {
+  display: flex; align-items: center; gap: 12px; padding: 13px 14px;
+  border-radius: 11px; color: #697a8e; text-decoration: none;
+  font-size: 13px; font-weight: 650; margin: 3px 0; transition: .18s ease;
+}
+.nav-link span { width: 20px; font-size: 18px; text-align: center; }
+.nav-link:hover, .nav-link.active { background: #edf3ff; color: #315fe9; }
+.sidebar-note { margin-top: auto; padding: 17px; border-radius: 15px; background: linear-gradient(145deg,#eef4ff,#e9faf7); }
+.note-icon { color: #315fe9; font-size: 23px; margin-bottom: 9px; }
+.sidebar-note strong { font-size: 13px; color: #193858; }
+.sidebar-note p { color: #718096; font-size: 11px; line-height: 1.7; margin-bottom: 0; }
+.sidebar-footer { padding: 22px 5px 0; color: #8391a1; font-size: 11px; }
+.online-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #27c6a0; margin-right: 6px; }
+body > main { max-width: 1320px; margin: 0 auto; padding: 30px clamp(18px,3vw,44px) 55px; }
+.welcome {
+  display: flex; align-items: center; justify-content: space-between; gap: 24px;
+  min-height: 245px; padding: clamp(25px,4vw,44px); margin-bottom: 24px;
+  border-radius: 22px; color: white; overflow: hidden; position: relative;
+  background: linear-gradient(115deg,#172f50 0%,#214d70 62%,#187b83 100%);
+  box-shadow: 0 15px 35px #193a501a;
+}
+.welcome-copy { max-width: 620px; position: relative; z-index: 1; }
+.eyebrow { display: block; color: #28b9b3; font-size: 10px; font-weight: 850; letter-spacing: 1.6px; margin-bottom: 12px; }
+.welcome .eyebrow { color: #8de6db; }
+.welcome h1 { margin: 0 0 12px; font-size: clamp(29px,4vw,43px); line-height: 1.15; letter-spacing: -1.2px; }
+.welcome p { color: #d4e5ef; font-size: 14px; line-height: 1.85; max-width: 570px; margin: 0; }
+.welcome-art { width: 205px; min-width: 155px; height: 165px; position: relative; display: grid; place-items: center; }
+.art-ring { position: absolute; width: 150px; height: 150px; border: 1px solid #ffffff38; border-radius: 50%; box-shadow: 0 0 0 20px #ffffff08,0 0 0 40px #ffffff06; }
+.art-symbol { position: relative; display: grid; place-items: center; width: 90px; height: 90px; border: 1px solid #ffffff70; border-radius: 25px; background: #ffffff17; backdrop-filter: blur(5px); font-size: 53px; font-weight: 850; }
+.art-symbol span { position: absolute; right: -7px; top: -10px; display: grid; place-items: center; width: 29px; height: 29px; border-radius: 50%; background: #27c6a1; color: #133d51; font-size: 20px; }
+.art-caption { position: absolute; bottom: -2px; font-size: 8px; letter-spacing: 1.5px; color: #bde9e7; }
+.learner-panel { padding: 23px 27px; }
+.section-heading { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin-bottom: 20px; }
+.section-heading h2 { margin: 0 0 5px; }
+.section-heading p { margin: 0; }
+.profile-mark { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 14px; color: #315fe9; background: #edf3ff; font-size: 21px; }
+.dashboard-tag { padding: 8px 11px; background: #eaf8f5; color: #188f88; border-radius: 9px; font-size: 10px; font-weight: 800; letter-spacing: .8px; white-space: nowrap; }
+.dashboard-metrics { margin: 18px 0 23px; }
+.dashboard-metrics .metric { background: #fbfdff; min-height: 112px; }
+.dashboard-metrics .metric span { display: block; font-size: 12px; color: #718096; }
+.dashboard-metrics .metric small { display: block; margin-top: 4px; color: #96a2b0; font-size: 10px; }
+.set-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 13px; }
+.set-card { border: 1px solid #e3ebf2; border-radius: 14px; padding: 17px; background: #fff; min-width: 0; }
+.set-card h3 { margin: 0 0 7px; font-size: 14px; }
+.set-card p { margin: 0 0 13px; color: #8491a1; font-size: 11px; line-height: 1.6; }
+.set-card button { width: 100%; margin-top: 13px; padding: 10px 12px; font-size: 12px; }
+.set-card button.secondary { box-shadow: none; }
+.set-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin-bottom: 13px; }
+.set-number { font-size: 10px; color: #8795a5; font-weight: 750; letter-spacing: .6px; }
+.set-status { font-size: 9px; font-weight: 800; border-radius: 20px; padding: 5px 8px; background: #eef2f6; color: #738195; white-space: nowrap; }
+.set-status.open { background: #eaf8f3; color: #16855f; }
+.set-status.passed { background: #eaf1ff; color: #315fe9; }
+.set-status.remedial_required { background: #fff1df; color: #b66b12; }
+.set-progress { height: 5px; background: #edf1f5; border-radius: 8px; overflow: hidden; }
+.set-progress span { display: block; height: 100%; background: linear-gradient(90deg,#315fe9,#27c6c1); border-radius: inherit; }
+@media (max-width: 850px) {
+  body { padding-left: 0; padding-bottom: 65px; }
+  .sidebar { inset: auto 0 0; width: 100%; height: 62px; padding: 6px 8px; flex-direction: row; justify-content: space-around; border-right: 0; border-top: 1px solid #e4edf1; }
+  .brand, .nav-label, .sidebar-note, .sidebar-footer { display: none; }
+  .nav-link { flex: 1; justify-content: center; flex-direction: column; gap: 2px; margin: 0 2px; padding: 5px 2px; font-size: 9px; }
+  .nav-link span { font-size: 17px; }
+  body > main { padding: 18px 14px 35px; }
+  .welcome { min-height: 215px; padding: 25px; }
+  .welcome-art { width: 115px; min-width: 100px; transform: scale(.8); }
+}
+@media (max-width: 560px) {
+  .welcome-art { display: none; }
+  .welcome { min-height: 0; }
+  .set-grid { grid-template-columns: 1fr; }
+  .learner-panel { padding: 20px; }
+}
+
 </style>
 </head>
 <body>
-<header class="top">
-  <h1>Adaptive Java Quiz</h1>
-  <p>Practice Java concepts, receive explanations, and track your learning progress.</p>
-</header>
+<aside class="sidebar">
+  <div class="brand">
+    <div class="brand-mark">J</div>
+    <div><strong>J-LISA</strong><small>JAVA LEARNING SYSTEM</small></div>
+  </div>
+  <div class="nav-label">LEARNING SPACE</div>
+  <a class="nav-link active" href="#dashboardPanel"><span>?</span> Dashboard</a>
+  <a class="nav-link" href="#learnerPanel"><span>?</span> Learner Profile</a>
+  <a class="nav-link" href="#quizPanel"><span>?</span> Adaptive Quiz</a>
+  <a class="nav-link" href="#progressPanel"><span>?</span> My Progress</a>
+  <div class="sidebar-note">
+    <div class="note-icon">?</div>
+    <strong>Learn at your pace</strong>
+    <p>Practice your weak topics and build Java mastery one step at a time.</p>
+  </div>
+  <div class="sidebar-footer"><span class="online-dot"></span> Learning environment</div>
+</aside>
 <main>
+  <section class="welcome">
+    <div class="welcome-copy">
+      <span class="eyebrow"><span class="online-dot"></span> ADAPTIVE QUIZ ENGINE</span>
+      <h1>Java Mastery Quiz</h1>
+      <p>Master each topic before moving to the next. Score 90% to advance, or practise your weak spots with fresh questions.</p>
+    </div>
+    <div class="welcome-art"><div class="art-ring"></div><div class="art-symbol">J<span>+</span></div><div class="art-caption">LEARN ? PRACTISE ? MASTER</div></div>
+  </section>
   <section class="panel">
     <h2>Start learning</h2>
     <label for="learner">Learner ID</label>
@@ -39,6 +255,20 @@ button:disabled{opacity:.5;cursor:wait}.secondary{background:#eaf0fb;color:#204b
       <button class="secondary" id="progress">View progress</button>
     </div>
     <div id="message" aria-live="polite"></div>
+  </section>
+
+  <section id="dashboardPanel" class="panel">
+    <div class="section-heading">
+      <div><span class="eyebrow">YOUR JOURNEY</span><h2>Learning dashboard</h2><p class="muted small">Choose a set to continue your Java learning journey.</p></div>
+      <span class="dashboard-tag">JAVA PATH</span>
+    </div>
+    <div class="grid dashboard-metrics">
+      <div class="metric"><span>Learning sets passed</span><strong id="topicsMastered">?</strong><small>In this module</small></div>
+      <div class="metric"><span>Best quiz score</span><strong id="overallMastery">?</strong><small>Based on recorded results</small></div>
+      <div class="metric"><span>Set availability</span><strong id="questionsAnswered">?</strong><small>Ready to continue</small></div>
+    </div>
+    <div id="dashboardMessage" class="notice">Choose a learner ID and module to load your learning sets.</div>
+    <div id="setGrid" class="set-grid"></div>
   </section>
   <section id="quizPanel" class="panel hidden">
     <h2 id="quizTitle">Quiz</h2>
@@ -123,7 +353,136 @@ function renderQuestion() {
     </div>`;
 }
 
-async function startQuiz() {
+
+async function renderDashboard() {
+  const learnerId = learner();
+  const selectedModule = moduleNo();
+  const grid = $("setGrid");
+  const notice = $("dashboardMessage");
+
+  if (!learnerId) {
+    $("topicsMastered").textContent = "?";
+    $("overallMastery").textContent = "?";
+    $("questionsAnswered").textContent = "?";
+    grid.innerHTML = "";
+    notice.textContent = "Enter a learner ID to load your saved learning sets.";
+    return;
+  }
+
+  notice.textContent = "Loading your saved learning progress...";
+
+  try {
+    const [overview, progress] = await Promise.all([
+      api(`/api/sets?learner_id=${encodeURIComponent(learnerId)}&module_no=${selectedModule}`),
+      api(`/api/progress?learner_id=${encodeURIComponent(learnerId)}&module_no=${selectedModule}`)
+        .catch(() => null)
+    ]);
+
+    const sets = Array.isArray(overview.sets) ? overview.sets :
+      Array.isArray(overview.items) ? overview.items : [];
+
+    if (!sets.length) {
+      $("topicsMastered").textContent = "0";
+      $("overallMastery").textContent = "?";
+      $("questionsAnswered").textContent = "0";
+      grid.innerHTML = "";
+      notice.textContent = "No learning sets were returned for this module.";
+      return;
+    }
+
+    const passedCount = sets.filter(x => x.status === "passed").length;
+    const availableCount = sets.filter(x =>
+      x.status === "open" || x.status === "remedial_required"
+    ).length;
+
+    const scores = sets
+      .filter(x => x.best_score !== null &&
+                   x.best_score !== undefined &&
+                   x.best_score !== "")
+      .map(x => Number(x.best_score))
+      .filter(x => Number.isFinite(x) && x >= 0);
+
+    const bestScore = scores.length ? Math.max(...scores) : null;
+
+    $("topicsMastered").textContent = `${passedCount}/${sets.length}`;
+    $("overallMastery").textContent =
+      bestScore === null ? "?" : `${bestScore}%`;
+    $("questionsAnswered").textContent = availableCount;
+
+    notice.textContent = progress
+      ? `Saved progress loaded for ${learnerId}. Choose an available set to continue.`
+      : `Learning sets loaded for ${learnerId}. Detailed progress is temporarily unavailable.`;
+
+    const labels = {
+      open: "Available",
+      passed: "Passed",
+      remedial_required: "Remedial Required",
+      locked: "Locked"
+    };
+
+    grid.innerHTML = sets.map((set, index) => {
+      const n = Number(set.set_no ?? set.setNo ?? set.number ?? index + 1);
+      const status = labels[set.status] ? set.status : "locked";
+
+      const hasScore = set.best_score !== null &&
+                       set.best_score !== undefined &&
+                       set.best_score !== "" &&
+                       Number.isFinite(Number(set.best_score));
+
+      const score = hasScore ? Number(set.best_score) : null;
+      const progressWidth = status === "passed" ? 100 :
+        (hasScore ? Math.max(0, Math.min(100, score)) : 0);
+
+      const canStart = status === "open" || status === "remedial_required";
+
+      const buttonText = status === "remedial_required"
+        ? "Continue remedial test"
+        : status === "open"
+          ? "Start learning set"
+          : status === "passed"
+            ? "Set completed"
+            : "Locked";
+
+      const heading = status === "passed"
+        ? "Mastery achieved"
+        : status === "remedial_required"
+          ? "Practice your weak topics"
+          : status === "open"
+            ? "Ready to learn"
+            : "Keep progressing";
+
+      const description = hasScore
+        ? `Best recorded score: ${score}%`
+        : status === "passed"
+          ? "This set has been completed."
+          : "Continue your Java learning journey.";
+
+      return `
+        <article class="set-card">
+          <div class="set-top">
+            <span class="set-number">LEARNING SET ${n}</span>
+            <span class="set-status ${status}">${labels[status]}</span>
+          </div>
+          <h3>${heading}</h3>
+          <p>${description}</p>
+          <div class="set-progress">
+            <span style="width:${progressWidth}%"></span>
+          </div>
+          <button class="${canStart ? "" : "secondary"}"
+            ${canStart ? `onclick="startQuiz(${n})"` : "disabled"}>
+            ${buttonText}
+          </button>
+        </article>`;
+    }).join("");
+
+  } catch (e) {
+    notice.textContent = "Could not load dashboard: " + e.message;
+    grid.innerHTML = "";
+  }
+}
+
+async function startQuiz(requestedSetNo = null) {
+  if (typeof requestedSetNo !== 'number') requestedSetNo = null;
   if (busy) return;
   busy = true;
   $("start").disabled = true;
@@ -146,16 +505,23 @@ async function startQuiz() {
         ? overview.items
         : Object.values(overview).find(Array.isArray) || [];
 
-    const set = sets.find(item =>
-      item.status === "open" || item.status === "remedial_required"
-    );
+    const set = requestedSetNo == null
+      ? sets.find(item =>
+          item.status === "open" || item.status === "remedial_required"
+        )
+      : sets.find(item =>
+          Number(item.set_no ?? item.setNo ?? item.number) === Number(requestedSetNo)
+        );
 
     if (!set) {
       throw new Error(
         sets.length
-          ? "No available set found. Check the set progress."
+          ? "That set is not available. Refresh your dashboard and try again."
           : "The set-progress response did not contain a set list."
       );
+    }
+    if (set.status !== "open" && set.status !== "remedial_required") {
+      throw new Error("This set is locked or already passed.");
     }
 
     const setNo = Number(
@@ -270,6 +636,7 @@ async function finishQuiz() {
     $("resultPanel").classList.remove("hidden");
     $("quizPanel").classList.add("hidden");
     currentQuiz = null;
+    await renderDashboard();
     $("resultPanel").scrollIntoView({behavior:"smooth",block:"start"});
   } catch(e) {
     $("feedback").innerHTML = `<div class="error">${escapeHtml(e.message)}</div>`;
@@ -307,7 +674,9 @@ $("submit").addEventListener("click", submitQuiz);
 $("progress").addEventListener("click", showProgress);
 $("resultProgress").addEventListener("click", showProgress);
 $("again").addEventListener("click", startQuiz);
-loadModules();
+$("learner").addEventListener("change", renderDashboard);
+$("module").addEventListener("change", renderDashboard);
+loadModules().then(renderDashboard);
 </script>
 </body>
 </html>
