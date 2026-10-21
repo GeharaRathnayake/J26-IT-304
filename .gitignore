@@ -10,7 +10,6 @@ dist/
 build/
 
 # Environment
-.env
 
 # Data and models
 data/**/*.csv
@@ -36,3 +35,4 @@ AGENTS.md
 generated_questions/
 *_backup*.py
 *_backup*.db
+config.bat
