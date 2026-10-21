@@ -6,8 +6,6 @@ dist-ssr/
 coverage/
 
 # ---- Secrets ----
-.env
-.env.*
 !.env.example
 
 # ---- Python / backend ----
@@ -39,7 +37,6 @@ backend/models/
 .ipynb_checkpoints/
 
 # ---- Editors / OS ----
-.vscode/*
 !.vscode/extensions.json
 .idea/
 .DS_Store
@@ -48,3 +45,4 @@ Thumbs.db
 
 # ---- Tooling leftovers ----
 .playwright-mcp/
+config.bat
