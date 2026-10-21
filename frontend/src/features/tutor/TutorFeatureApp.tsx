@@ -18,12 +18,14 @@ import { QUESTION_TOP_OFFSET_PX, scrollTargetFor, shouldScrollToQuestion } from 
 import { formatMs } from './formatMs';
 import type { StoredChat } from './chatStore';
 import type { TopicOption } from './api/types';
+import { DashboardView } from '../dashboard/DashboardView';
 
 // Shader + LiveKit code is heavy; only fetch it the first time voice is opened.
 const VoiceAura = lazy(() => import('./VoiceAura'));
 
 export function TutorFeatureApp() {
   const episode = useEpisode();
+  const [view, setView] = useState<'dashboard' | 'tutor'>('dashboard');
   const [panelOpen, setPanelOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(() => localStorage.getItem('java-tutor.sidebar') !== 'collapsed');
   const [voiceOpen, setVoiceOpen] = useState(false);
@@ -51,29 +53,75 @@ export function TutorFeatureApp() {
     event.currentTarget.querySelector<HTMLTextAreaElement>('.tutor-composer textarea')?.focus();
   };
   return <div className="flex h-full min-h-screen flex-row bg-surface text-ink">
-    <TutorSidebar open={sidebarOpen} panelOpen={panelOpen} chats={episode.chats} currentChatId={episode.currentChatId} topics={episode.topics} onOpenChat={episode.openChat} onHome={() => { setPanelOpen(false); setSidebarOpen(true); }} onToggle={() => setSidebarOpen((value) => !value)} onNewTopic={() => episode.reset()} onResearch={() => { setPanelOpen((value) => !value); setSidebarOpen(false); }} />
+    <TutorSidebar
+      open={sidebarOpen}
+      panelOpen={panelOpen}
+      chats={episode.chats}
+      currentChatId={episode.currentChatId}
+      topics={episode.topics}
+      currentView={view}
+      onOpenChat={(id) => { episode.openChat(id); setView('tutor'); }}
+      onDashboard={() => { setPanelOpen(false); setView('dashboard'); }}
+      onToggle={() => setSidebarOpen((value) => !value)}
+      onNewTopic={() => { episode.reset(); setView('tutor'); }}
+      onResearch={() => { setPanelOpen((value) => !value); setSidebarOpen(false); }}
+    />
       {panelOpen && <ResearchPanel episode={episode} />}
       <div className="flex min-w-0 flex-1 flex-col" onClick={() => { if (sidebarOpen) setSidebarOpen(false); }}>
-      <VoicePanel open={voiceOpen} track={mic.track} />
-      {voiceOpen && !speech.supported && <div className="border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900" role="status">Speech recognition isn&rsquo;t available in this browser, so spoken messages can&rsquo;t be sent. Try Chrome or Edge.</div>}
-      {mic.error && <div className="border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900" role="alert">{mic.error}</div>}
-      {episode.healthStatus === 'unreachable' && <div className="flex items-center justify-between border-b border-red-300 bg-red-50 px-4 py-2 text-sm text-red-900" role="alert"><span>Can&rsquo;t reach the tutor service.</span><button className="rounded border border-red-400 px-2 py-1" onClick={episode.retryHealth}>Retry</button></div>}
-      {episode.health && !episode.health.llm_reachable && <div className="border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900" role="status">Running with template responses.</div>}
-      {episode.state.error?.kind === 'model_unavailable' && <div className="flex items-center justify-between border-b border-red-300 bg-red-50 px-4 py-2 text-sm text-red-900" role="alert"><span>Tutor service unavailable.</span><button className="rounded border border-red-400 px-2 py-1" onClick={episode.retryHealth}>Retry</button></div>}
-        <div className="flex min-h-0 flex-1 flex-col"><main className="tutor-main flex min-h-0 min-w-0 flex-1 flex-col" onClick={focusComposer}>{env.showThinkingToggle && <div className="flex shrink-0 justify-end px-3 pt-2"><BrainToggle on={episode.thinking} disabled={composerDisabled} onToggle={() => episode.setThinking(!episode.thinking)} /></div>}<Transcript episode={episode} voice={voiceOpen} /><SearchComposer topics={episode.topics} topic={topic} onTopicChange={episode.chooseTopic} onEngage={() => undefined} onDisengage={() => undefined} voiceActive={voiceOpen} voiceTrack={mic.track} onVoiceToggle={() => setVoiceOpen((value) => !value)} onVoiceClose={() => setVoiceOpen(false)} idle={episode.state.messages.length === 0} disabled={composerDisabled} sendDisabled={composerDisabled} draftOnFailure={episode.state.error ? [...episode.state.messages].reverse().find((m) => m.role === 'student' && m.failed)?.text ?? '' : ''} onSend={episode.send} /></main></div>
-    </div>
+        {view === 'dashboard' ? (
+          <DashboardView onStartChat={() => setView('tutor')} />
+        ) : (
+          <>
+            <VoicePanel open={voiceOpen} track={mic.track} />
+            {voiceOpen && !speech.supported && <div className="border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900" role="status">Speech recognition isn&rsquo;t available in this browser, so spoken messages can&rsquo;t be sent. Try Chrome or Edge.</div>}
+            {mic.error && <div className="border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900" role="alert">{mic.error}</div>}
+            {episode.healthStatus === 'unreachable' && <div className="flex items-center justify-between border-b border-red-300 bg-red-50 px-4 py-2 text-sm text-red-900" role="alert"><span>Can&rsquo;t reach the tutor service.</span><button className="rounded border border-red-400 px-2 py-1" onClick={episode.retryHealth}>Retry</button></div>}
+            {episode.health && !episode.health.llm_reachable && <div className="border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900" role="status">Running with template responses.</div>}
+            {episode.state.error?.kind === 'model_unavailable' && <div className="flex items-center justify-between border-b border-red-300 bg-red-50 px-4 py-2 text-sm text-red-900" role="alert"><span>Tutor service unavailable.</span><button className="rounded border border-red-400 px-2 py-1" onClick={episode.retryHealth}>Retry</button></div>}
+            <div className="flex min-h-0 flex-1 flex-col"><main className="tutor-main flex min-h-0 min-w-0 flex-1 flex-col" onClick={focusComposer}>{env.showThinkingToggle && <div className="flex shrink-0 justify-end px-3 pt-2"><BrainToggle on={episode.thinking} disabled={composerDisabled} onToggle={() => episode.setThinking(!episode.thinking)} /></div>}<Transcript episode={episode} voice={voiceOpen} /><SearchComposer topics={episode.topics} topic={topic} onTopicChange={episode.chooseTopic} onEngage={() => undefined} onDisengage={() => undefined} voiceActive={voiceOpen} voiceTrack={mic.track} onVoiceToggle={() => setVoiceOpen((value) => !value)} onVoiceClose={() => setVoiceOpen(false)} idle={episode.state.messages.length === 0} disabled={composerDisabled} sendDisabled={composerDisabled} draftOnFailure={episode.state.error ? [...episode.state.messages].reverse().find((m) => m.role === 'student' && m.failed)?.text ?? '' : ''} onSend={episode.send} /></main></div>
+          </>
+        )}
+      </div>
   </div>;
 }
 
-function TutorSidebar({ open, panelOpen, chats, currentChatId, topics, onOpenChat, onHome, onToggle, onNewTopic, onResearch }: { open: boolean; panelOpen: boolean; chats: StoredChat[]; currentChatId: string | null; topics: TopicOption[]; onOpenChat: (id: string) => void; onHome: () => void; onToggle: () => void; onNewTopic: () => void; onResearch: () => void }) {
+function TutorSidebar({ open, panelOpen, chats, currentChatId, topics, currentView = 'dashboard', onOpenChat, onHome, onDashboard, onToggle, onNewTopic, onResearch }: { open: boolean; panelOpen: boolean; chats: StoredChat[]; currentChatId: string | null; topics: TopicOption[]; currentView?: 'dashboard' | 'tutor'; onOpenChat: (id: string) => void; onHome?: () => void; onDashboard?: () => void; onToggle: () => void; onNewTopic: () => void; onResearch: () => void }) {
   const [showMore, setShowMore] = useState(false);
   // The student's real chats, newest first (chatStore). Never a hard-coded list.
   const visibleChats = showMore ? chats : chats.slice(0, 5);
   const topicLabel = (id: string | null) => topics.find((t) => t.id === id)?.label ?? 'Java tutoring';
+  const handleDashboard = onDashboard ?? onHome ?? (() => {});
   return <aside className={`tutor-sidebar ${open ? 'tutor-sidebar-open' : 'tutor-sidebar-collapsed'}`} aria-label="Tutor navigation">
-    <button type="button" className="tutor-sidebar-icon tutor-sidebar-home" onClick={onHome} aria-label="Home" title="Home">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3.5 10.5 8.5-7 8.5 7" /><path d="M5.5 9.5V20h13V9.5" /><path d="M9.5 20v-6h5v6" /></svg>
-      {open && <span>Home</span>}
+    <button
+      type="button"
+      className="tutor-sidebar-brand"
+      onClick={handleDashboard}
+      title="J-LISA: Java Learning Intelligent System Assistant"
+      aria-label="J-LISA Home"
+    >
+      {open ? (
+        <img
+          src="/j-lisa-logo.png"
+          alt="J-LISA Adaptive Programming Platform"
+          className="tutor-sidebar-logo"
+        />
+      ) : (
+        <img
+          src="/j-lisa-icon.png"
+          alt="J-LISA"
+          className="tutor-sidebar-logo-icon"
+        />
+      )}
+    </button>
+    <button
+      type="button"
+      className={`tutor-sidebar-icon tutor-sidebar-dashboard tutor-sidebar-home ${currentView === 'dashboard' ? 'tutor-sidebar-icon-active' : ''}`}
+      onClick={handleDashboard}
+      aria-label="Dashboard"
+      title="Dashboard"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1" /><rect x="14" y="3" width="7" height="5" rx="1" /><rect x="14" y="12" width="7" height="9" rx="1" /><rect x="3" y="16" width="7" height="5" rx="1" /></svg>
+      {open && <span>Dashboard</span>}
     </button>
     <div className="tutor-sidebar-navigation">
     <button type="button" className="tutor-sidebar-icon" onClick={onToggle} aria-label={open ? 'Collapse sidebar' : 'Expand sidebar'} title={open ? 'Collapse sidebar' : 'Expand sidebar'}>
