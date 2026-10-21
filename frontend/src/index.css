@@ -157,7 +157,44 @@ button:not(:disabled):hover {
   width: 58px;
 }
 
-.tutor-sidebar-home {
+.tutor-sidebar-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 4px 4px 10px;
+  margin-bottom: 6px;
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  background: transparent;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: opacity 150ms ease, background-color 150ms ease;
+  overflow: hidden;
+}
+
+.tutor-sidebar-brand:hover {
+  opacity: 0.92;
+  background: var(--accent-soft);
+}
+
+.tutor-sidebar-logo {
+  width: 100%;
+  height: auto;
+  max-height: 48px;
+  object-fit: contain;
+  display: block;
+}
+
+.tutor-sidebar-logo-icon {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  display: block;
+}
+
+.tutor-sidebar-home,
+.tutor-sidebar-dashboard {
   flex: 0 0 42px;
 }
 
@@ -185,7 +222,8 @@ button:not(:disabled):hover {
   font-weight: 700;
 }
 
-.tutor-sidebar-icon:hover {
+.tutor-sidebar-icon:hover,
+.tutor-sidebar-icon-active {
   color: var(--accent);
   background: var(--accent-soft);
 }
