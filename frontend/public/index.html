@@ -215,6 +215,8 @@ body > main { max-width: 1320px; margin: 0 auto; padding: 30px clamp(18px,3vw,44
   .learner-panel { padding: 20px; }
 }
 
+
+.page-view.hidden { display: none !important; }
 </style>
 </head>
 <body>
@@ -224,10 +226,8 @@ body > main { max-width: 1320px; margin: 0 auto; padding: 30px clamp(18px,3vw,44
     <div><strong>J-LISA</strong><small>JAVA LEARNING SYSTEM</small></div>
   </div>
   <div class="nav-label">LEARNING SPACE</div>
-  <a class="nav-link active" href="#dashboardPanel"><span>?</span> Dashboard</a>
-  <a class="nav-link" href="#learnerPanel"><span>?</span> Learner Profile</a>
-  <a class="nav-link" href="#quizPanel"><span>?</span> Adaptive Quiz</a>
-  <a class="nav-link" href="#progressPanel"><span>?</span> My Progress</a>
+  <a class="nav-link active" href="#dashboard" data-page="dashboard"><span>D</span> Learner Dashboard</a>
+  <a class="nav-link" href="#adaptive-quiz" data-page="adaptive-quiz"><span>Q</span> Adaptive Quiz</a>
   <div class="sidebar-note">
     <div class="note-icon">?</div>
     <strong>Learn at your pace</strong>
@@ -238,9 +238,9 @@ body > main { max-width: 1320px; margin: 0 auto; padding: 30px clamp(18px,3vw,44
 <main>
   <section class="welcome">
     <div class="welcome-copy">
-      <span class="eyebrow"><span class="online-dot"></span> ADAPTIVE QUIZ ENGINE</span>
-      <h1>Java Mastery Quiz</h1>
-      <p>Master each topic before moving to the next. Score 90% to advance, or practise your weak spots with fresh questions.</p>
+      <span class="eyebrow"><span class="online-dot"></span> YOUR LEARNING JOURNEY</span>
+      <h1>Learner Dashboard</h1>
+      <p>Track your Java learning progress, understand your strengths and weak areas, and build mastery one concept at a time.</p>
     </div>
     <div class="welcome-art"><div class="art-ring"></div><div class="art-symbol">J<span>+</span></div><div class="art-caption">LEARN ? PRACTISE ? MASTER</div></div>
   </section>
@@ -249,7 +249,7 @@ body > main { max-width: 1320px; margin: 0 auto; padding: 30px clamp(18px,3vw,44
     <label for="learner">Learner ID</label>
     <input id="learner" maxlength="80" placeholder="Enter a learner ID" value="student01">
     <label for="module">Java module</label>
-    <select id="module"><option value="">Loading modules…</option></select>
+    <select id="module"><option value="">Loading modulesÃ¢â‚¬Â¦</option></select>
     <div class="actions">
       <button id="start">Start 10-question quiz</button>
       <button class="secondary" id="progress">View progress</button>
@@ -271,7 +271,7 @@ body > main { max-width: 1320px; margin: 0 auto; padding: 30px clamp(18px,3vw,44
     <div id="setGrid" class="set-grid"></div>
   </section>
   <section id="quizPanel" class="panel hidden">
-    <h2 id="quizTitle">Quiz</h2>
+    <h2 id="quizTitle">Java Mastery Quiz</h2>
     <p class="muted" id="quizMode"></p>
     <div id="questions"></div>
     <div id="feedback" aria-live="polite"></div>
@@ -328,6 +328,11 @@ async function loadModules() {
     $("module").innerHTML = data.modules.map(m =>
       `<option value="${Number(m.module_no)}">${Number(m.module_no)}. ${escapeHtml(m.module_name)}</option>`
     ).join("");
+    const dashboardModule = $("dashboardModule");
+    if (dashboardModule) {
+      dashboardModule.innerHTML = $("module").innerHTML;
+      dashboardModule.value = $("module").value;
+    }
   } catch(e) { message("Could not load modules: " + e.message, true); }
 }
 
@@ -663,20 +668,179 @@ async function showProgress() {
         </div>`).join("") : "<p>No concept attempts recorded yet.</p>"}
       <p><strong>Adaptive decision:</strong> ${escapeHtml(data.decision)}</p>
       <p>${escapeHtml(data.recommendation)}</p>`;
-    $("progressPanel").classList.remove("hidden");
-    $("progressPanel").scrollIntoView({behavior:"smooth",block:"start"});
+    $("progressPanel").classList.add("hidden");
     message("");
   } catch(e) { message(e.message, true); }
 }
 
-$("start").addEventListener("click", startQuiz);
+function setupPageNavigation() {
+  const main = document.querySelector("main");
+  const welcome = main.querySelector(".welcome");
+  const dashboard = $("dashboardPanel");
+  const quiz = $("quizPanel");
+  const results = $("resultPanel");
+  const progress = $("progressPanel");
+
+  const startPanel = [...main.querySelectorAll("section.panel")]
+    .find(section => section.querySelector("h2")?.textContent.trim() === "Start learning");
+
+  if (!welcome || !dashboard || !quiz || !results || !progress || !startPanel) {
+    throw new Error("Navigation setup could not find all required page sections.");
+  }
+
+  const footerNote = [...main.children].find(element =>
+    element.tagName === "P" && element.classList.contains("muted")
+  );
+
+  const createView = id => {
+    const view = document.createElement("div");
+    view.id = id;
+    view.className = "page-view";
+    main.appendChild(view);
+    return view;
+  };
+
+  const dashboardView = createView("dashboardView");
+  const adaptiveView = createView("adaptiveQuizView");
+
+  dashboardView.appendChild(welcome);
+  dashboardView.appendChild(startPanel);
+  dashboardView.appendChild(dashboard);
+
+  const description = dashboard.querySelector(".section-heading p");
+  if (description) {
+    description.textContent = "Your Java learning summary, concept mastery, and progress in one place.";
+  }
+
+  const setGrid = $("setGrid");
+  const dashboardMessage = $("dashboardMessage");
+
+  const setsPanel = document.createElement("section");
+  setsPanel.id = "learningSetsPanel";
+  setsPanel.className = "panel";
+  setsPanel.innerHTML = `
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">YOUR LEARNING PATH</span>
+        <h2>Learning Sets</h2>
+        <p class="muted small">Choose an available set. New sets unlock as you demonstrate mastery.</p>
+      </div>
+      <span class="dashboard-tag">ADAPTIVE PRACTICE</span>
+    </div>`;
+
+  if (dashboardMessage) setsPanel.appendChild(dashboardMessage);
+  if (setGrid) setsPanel.appendChild(setGrid);
+
+  const dashboardProgress = document.createElement("section");
+  dashboardProgress.id = "dashboardProgressPanel";
+  dashboardProgress.className = "panel";
+  dashboardProgress.innerHTML = `
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">YOUR DEVELOPMENT</span>
+        <h2>Progress Overview</h2>
+        <p class="muted small">Recorded performance and concept-level progress for your selected Java module.</p>
+      </div>
+    </div>
+    <div id="dashboardProgressData">
+      <p class="muted">Loading your progress...</p>
+    </div>
+    <button type="button" id="dashboardRefreshProgress" class="secondary">Refresh progress</button>`;
+
+  dashboardView.appendChild(dashboardProgress);
+
+  const quizPageHeader = document.createElement("section");
+  quizPageHeader.className = "welcome quiz-page-header";
+  quizPageHeader.innerHTML = `
+    <div class="welcome-copy">
+      <span class="eyebrow"><span class="online-dot"></span> ADAPTIVE LEARNING</span>
+      <h1>Java Mastery Quiz</h1>
+      <p>Practice Java concepts, strengthen weak areas, and unlock the next learning set by demonstrating mastery.</p>
+    </div>
+    <div class="welcome-art">
+      <div class="art-ring"></div>
+      <div class="art-symbol">J<span>+</span></div>
+      <div class="art-caption">PRACTISE ? IMPROVE ? MASTER</div>
+    </div>`;
+
+  adaptiveView.appendChild(quizPageHeader);
+  adaptiveView.appendChild(setsPanel);
+  adaptiveView.appendChild(quiz);
+  adaptiveView.appendChild(results);
+
+  progress.classList.add("hidden");
+  if (footerNote) dashboardView.appendChild(footerNote);
+
+  const views = {
+    dashboard: dashboardView,
+    "adaptive-quiz": adaptiveView
+  };
+
+  let currentPage = "dashboard";
+
+  async function refreshProgressViews() {
+    await showProgress();
+    $("dashboardProgressData").innerHTML = $("progressData").innerHTML;
+  }
+
+  async function navigate(page) {
+    if (!views[page]) return;
+    currentPage = page;
+
+    for (const [key, view] of Object.entries(views)) {
+      view.classList.toggle("hidden", key !== page);
+    }
+
+    document.querySelectorAll(".nav-link[data-page]").forEach(link => {
+      const active = link.dataset.page === page;
+      link.classList.toggle("active", active);
+      if (active) link.setAttribute("aria-current", "page");
+      else link.removeAttribute("aria-current");
+    });
+
+    if (page === "dashboard") await refreshProgressViews();
+    if (page === "adaptive-quiz") await renderDashboard();
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  document.querySelectorAll(".nav-link[data-page]").forEach(link => {
+    link.addEventListener("click", event => {
+      event.preventDefault();
+      navigate(link.dataset.page);
+    });
+  });
+
+  $("dashboardRefreshProgress").addEventListener("click", refreshProgressViews);
+  $("progress").addEventListener("click", refreshProgressViews);
+  $("resultProgress").addEventListener("click", () => {
+    document.querySelector('[data-page="dashboard"]').click();
+  });
+
+  $("learner").addEventListener("change", async () => {
+    await renderDashboard();
+    if (currentPage === "dashboard") await refreshProgressViews();
+  });
+
+  $("module").addEventListener("change", async () => {
+    await renderDashboard();
+    if (currentPage === "dashboard") await refreshProgressViews();
+  });
+
+  navigate("dashboard");
+}
+$("start").addEventListener("click", () => {
+  document.querySelector('[data-page="adaptive-quiz"]').click();
+  startQuiz();
+});
 $("submit").addEventListener("click", submitQuiz);
-$("progress").addEventListener("click", showProgress);
-$("resultProgress").addEventListener("click", showProgress);
+
+
 $("again").addEventListener("click", startQuiz);
-$("learner").addEventListener("change", renderDashboard);
-$("module").addEventListener("change", renderDashboard);
-loadModules().then(renderDashboard);
+
+
+setupPageNavigation();
+loadModules().then(async () => { await renderDashboard(); await refreshProgressViews(); });
 </script>
 </body>
 </html>
