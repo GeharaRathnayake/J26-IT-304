@@ -142,6 +142,7 @@ def normalize_question(raw, fallback_id):
     return {
         "id": str(raw.get("id") or fallback_id),
         "module_no": raw.get("module_no"),
+        "set_no": raw.get("set_no"),
         "module": raw.get("module") or raw.get("module_name") or "",
         "stem": stem.strip(),
         "concept_tag": concept.strip(),
@@ -187,6 +188,7 @@ def choose_questions(
     concepts,
     count=QUIZ_SIZE,
     try_qwen=False,
+    set_no=None,
 ):
     """Select questions, preferring fresh questions and using static fallback."""
     bank = load_normalized_bank()
@@ -203,6 +205,7 @@ def choose_questions(
         question
         for question in bank
         if question["module_no"] == module_no
+        and (set_no is None or question["set_no"] == set_no)
         and question["concept_tag"] in concepts
         and question["id"] not in attempted_ids
     ]
@@ -213,6 +216,7 @@ def choose_questions(
             question
             for question in bank
             if question["module_no"] == module_no
+            and (set_no is None or question["set_no"] == set_no)
             and question["concept_tag"] in concepts
         ]
 

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Adaptive Java Quiz</title>
+<style>
+:root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#202b3c;background:#f3f6fb}
+*{box-sizing:border-box}body{margin:0}.top{background:#172b4d;color:white;padding:24px max(20px,calc((100% - 960px)/2))}
+.top h1{margin:0 0 7px;font-size:26px}.top p{margin:0;color:#cbd7ec}
+main{max-width:960px;margin:28px auto;padding:0 18px}.panel{background:white;border:1px solid #e1e7f0;border-radius:14px;padding:24px;margin-bottom:18px;box-shadow:0 5px 18px #152b4d0a}
+h2{font-size:20px;margin:0 0 16px}label{display:block;font-weight:600;margin:12px 0 7px}
+input,select{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:8px;font-size:15px;background:white}
+button{border:0;border-radius:8px;background:#2459c4;color:white;font-weight:650;font-size:15px;padding:12px 18px;cursor:pointer}
+button:disabled{opacity:.5;cursor:wait}.secondary{background:#eaf0fb;color:#204b9d}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+.muted{color:#68768a}.notice{padding:12px;border-radius:8px;background:#edf4ff;margin:12px 0}.error{background:#fff0f0;color:#a32626;padding:12px;border-radius:8px}
+.question{padding:18px 0;border-bottom:1px solid #e5eaf2}.question:last-child{border:0}
+.qtitle{font-weight:650;margin-bottom:12px}.option{display:flex;gap:10px;align-items:flex-start;border:1px solid #dce3ed;border-radius:8px;padding:11px;margin:8px 0;cursor:pointer;font-weight:400}
+.option input{width:auto;margin-top:3px}.option:has(input:checked){border-color:#2459c4;background:#f1f6ff}
+.result{padding:14px;border-radius:8px;margin:12px 0;background:#f2f5fa}.good{border-left:4px solid #278354}.bad{border-left:4px solid #c44b4b}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}.metric{background:#f4f7fc;border-radius:10px;padding:14px}.metric strong{display:block;font-size:23px;margin-top:5px}
+.hidden{display:none}.small{font-size:13px;line-height:1.5}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Adaptive Java Quiz</h1>
+  <p>Practice Java concepts, receive explanations, and track your learning progress.</p>
+</header>
+<main>
+  <section class="panel">
+    <h2>Start learning</h2>
+    <label for="learner">Learner ID</label>
+    <input id="learner" maxlength="80" placeholder="Enter a learner ID" value="student01">
+    <label for="module">Java module</label>
+    <select id="module"><option value="">Loading modules…</option></select>
+    <div class="actions">
+      <button id="start">Start 10-question quiz</button>
+      <button class="secondary" id="progress">View progress</button>
+    </div>
+    <div id="message" aria-live="polite"></div>
+  </section>
+  <section id="quizPanel" class="panel hidden">
+    <h2 id="quizTitle">Quiz</h2>
+    <p class="muted" id="quizMode"></p>
+    <div id="questions"></div>
+    <div id="feedback" aria-live="polite"></div>
+    <div class="actions"><button id="submit">Check answer</button></div>
+  </section>
+  <section id="resultPanel" class="panel hidden">
+    <h2>Quiz results</h2>
+    <div id="score"></div>
+    <h2 style="margin-top:24px">Answer review</h2>
+    <div id="review"></div>
+    <div class="actions">
+      <button id="again">Try another quiz</button>
+      <button class="secondary" id="resultProgress">Refresh progress</button>
+    </div>
+  </section>
+  <section id="progressPanel" class="panel hidden">
+    <h2>Learning progress</h2>
+    <div id="progressData"></div>
+  </section>
+  <p class="muted small">Progress is saved in the local SQLite database. The application uses the existing question bank, learner records, knowledge graph, and local question generator where available.</p>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let currentQuiz = null;
+let currentIndex = 0;
+let awaitingNext = false;
+let busy = false;
+
+function message(text, error=false) {
+  $("message").innerHTML = text
+    ? `<div class="${error ? "error" : "notice"}">${escapeHtml(text)}</div>` : "";
+}
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
+}
+async function api(url, options={}) {
+  const response = await fetch(url, options);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "Request failed");
+  return data;
+}
+function learner() {
+  const value = $("learner").value.trim();
+  if (!value) throw new Error("Please enter a learner ID.");
+  return value;
+}
+function moduleNo() { return Number($("module").value || 1); }
+
+async function loadModules() {
+  try {
+    const data = await api("/api/modules");
+    $("module").innerHTML = data.modules.map(m =>
+      `<option value="${Number(m.module_no)}">${Number(m.module_no)}. ${escapeHtml(m.module_name)}</option>`
+    ).join("");
+  } catch(e) { message("Could not load modules: " + e.message, true); }
+}
+
+function renderQuestion() {
+  const q = currentQuiz.questions[currentIndex];
+  awaitingNext = false;
+  $("feedback").innerHTML = "";
+  $("submit").textContent = "Check answer";
+  $("submit").disabled = false;
+  $("questions").innerHTML = `
+    <div class="muted small">Question ${currentIndex + 1} of ${currentQuiz.total}</div>
+    <div style="height:6px;background:#e7edf6;border-radius:8px;margin:10px 0 20px;overflow:hidden">
+      <div style="height:100%;width:${(currentIndex/currentQuiz.total)*100}%;background:#2459c4"></div>
+    </div>
+    <div class="question">
+      <div class="qtitle">${escapeHtml(q.stem)}</div>
+      <div class="muted small">Concept: ${escapeHtml(q.concept)}</div>
+      ${["A","B","C","D"].map(letter => `
+        <label class="option">
+          <input type="radio" name="current_answer" value="${letter}">
+          <span><strong>${letter}.</strong> ${escapeHtml(q.options[letter])}</span>
+        </label>`).join("")}
+    </div>`;
+}
+
+async function startQuiz() {
+  if (busy) return;
+  busy = true;
+  $("start").disabled = true;
+  message("");
+  $("resultPanel").classList.add("hidden");
+  $("progressPanel").classList.add("hidden");
+  try {
+    const data = await api(`/api/quiz?learner_id=${encodeURIComponent(learner())}&module_no=${moduleNo()}`);
+    currentQuiz = data;
+    currentIndex = 0;
+    $("quizTitle").textContent = data.module_name + " ? Quiz";
+    $("quizMode").textContent = data.mode + " ? " + data.total + " questions";
+    $("quizPanel").classList.remove("hidden");
+    renderQuestion();
+    $("quizPanel").scrollIntoView({behavior:"smooth",block:"start"});
+  } catch(e) { message(e.message, true); }
+  finally { busy = false; $("start").disabled = false; }
+}
+
+async function submitQuiz() {
+  if (!currentQuiz || busy) return;
+
+  // After feedback, the same button advances to the next question.
+  if (awaitingNext) {
+    if (currentIndex < currentQuiz.questions.length - 1) {
+      currentIndex++;
+      renderQuestion();
+      $("quizPanel").scrollIntoView({behavior:"smooth",block:"start"});
+    } else {
+      await finishQuiz();
+    }
+    return;
+  }
+
+  const q = currentQuiz.questions[currentIndex];
+  const selected = document.querySelector('input[name="current_answer"]:checked');
+  if (!selected) {
+    $("feedback").innerHTML = '<div class="error">Please choose an answer before continuing.</div>';
+    return;
+  }
+
+  busy = true;
+  $("submit").disabled = true;
+  try {
+    const data = await api("/api/answer", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        session_id:currentQuiz.session_id,
+        question_id:q.id,
+        answer:selected.value
+      })
+    });
+
+    document.querySelectorAll('input[name="current_answer"]').forEach(el => el.disabled = true);
+    const tone = data.correct ? "good" : "bad";
+    $("feedback").innerHTML = `
+      <div class="result ${tone}">
+        <strong>${data.correct ? "Correct!" : "Incorrect."}</strong>
+        ${!data.correct ? `<p>The correct answer is <strong>${escapeHtml(data.correct_answer)}</strong>.</p>` : ""}
+        <p><strong>Explanation:</strong> ${escapeHtml(data.explanation)}</p>
+      </div>`;
+    awaitingNext = true;
+    $("submit").textContent = currentIndex === currentQuiz.questions.length - 1
+      ? "Finish quiz" : "Next question";
+  } catch(e) {
+    $("feedback").innerHTML = `<div class="error">${escapeHtml(e.message)}</div>`;
+  } finally {
+    busy = false;
+    $("submit").disabled = false;
+  }
+}
+
+async function finishQuiz() {
+  if (!currentQuiz || busy) return;
+  busy = true;
+  $("submit").disabled = true;
+  try {
+    const data = await api("/api/submit", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({session_id:currentQuiz.session_id})
+    });
+    $("score").innerHTML = `
+      <div class="grid">
+        <div class="metric">Correct answers<strong>${data.score}/${data.total}</strong></div>
+        <div class="metric">Quiz score<strong>${data.percentage}%</strong></div>
+        <div class="metric">Quiz outcome<strong>${data.passed ? "Passed" : "Practice needed"}</strong></div>
+      </div>
+      <div class="notice">${data.passed
+        ? "You reached the 9/10 quiz pass threshold."
+        : "You need at least 9/10 to pass. Review your explanations and practise weak concepts."}</div>
+      <p><strong>Adaptive decision:</strong> ${escapeHtml(data.decision)}</p>
+      <p>${escapeHtml(data.recommendation)}</p>
+      ${data.weak_concepts?.length
+        ? `<p><strong>Concepts needing practice:</strong> ${data.weak_concepts.map(escapeHtml).join(", ")}</p>` : ""}`;
+    $("review").innerHTML = "";
+    $("resultPanel").classList.remove("hidden");
+    $("quizPanel").classList.add("hidden");
+    currentQuiz = null;
+    $("resultPanel").scrollIntoView({behavior:"smooth",block:"start"});
+  } catch(e) {
+    $("feedback").innerHTML = `<div class="error">${escapeHtml(e.message)}</div>`;
+  } finally {
+    busy = false;
+    $("submit").disabled = false;
+  }
+}
+
+async function showProgress() {
+  try {
+    const data = await api(`/api/progress?learner_id=${encodeURIComponent(learner())}&module_no=${moduleNo()}`);
+    $("progressData").innerHTML = `
+      <div class="grid">
+        <div class="metric">Module<strong>${escapeHtml(data.module_name)}</strong></div>
+        <div class="metric">Recorded attempts<strong>${data.attempts}</strong></div>
+        <div class="metric">Overall accuracy<strong>${(Number(data.accuracy)*100).toFixed(1)}%</strong></div>
+        <div class="metric">Mastery<strong>${data.mastered ? "Achieved" : "In progress"}</strong></div>
+      </div>
+      <h3>Concept performance</h3>
+      ${(data.concepts || []).length ? data.concepts.map(c => `
+        <div class="result">
+          <strong>${escapeHtml(c.concept)}</strong> ? ${c.correct}/${c.attempts} correct (${(Number(c.accuracy)*100).toFixed(1)}%)
+        </div>`).join("") : "<p>No concept attempts recorded yet.</p>"}
+      <p><strong>Adaptive decision:</strong> ${escapeHtml(data.decision)}</p>
+      <p>${escapeHtml(data.recommendation)}</p>`;
+    $("progressPanel").classList.remove("hidden");
+    $("progressPanel").scrollIntoView({behavior:"smooth",block:"start"});
+    message("");
+  } catch(e) { message(e.message, true); }
+}
+
+$("start").addEventListener("click", startQuiz);
+$("submit").addEventListener("click", submitQuiz);
+$("progress").addEventListener("click", showProgress);
+$("resultProgress").addEventListener("click", showProgress);
+$("again").addEventListener("click", startQuiz);
+loadModules();
+</script>
+</body>
+</html>

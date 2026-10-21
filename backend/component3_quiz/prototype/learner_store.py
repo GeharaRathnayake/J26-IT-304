@@ -48,7 +48,59 @@ def initialize_database():
 
             CREATE INDEX IF NOT EXISTS idx_attempts_learner_concept
             ON attempts (learner_id, concept);
+
+            CREATE TABLE IF NOT EXISTS set_progress (
+                learner_id TEXT NOT NULL,
+                module_no INTEGER NOT NULL,
+                set_no INTEGER NOT NULL CHECK (set_no BETWEEN 1 AND 10),
+                status TEXT NOT NULL
+                    CHECK (status IN ('open', 'remedial_required', 'passed')),
+                best_score REAL,
+                PRIMARY KEY (learner_id, module_no, set_no),
+                FOREIGN KEY (learner_id)
+                    REFERENCES learners(learner_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS remedial_rounds (
+                round_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                learner_id TEXT NOT NULL,
+                module_no INTEGER NOT NULL,
+                set_no INTEGER NOT NULL,
+                round_no INTEGER NOT NULL,
+                weak_concepts_json TEXT NOT NULL,
+                questions_json TEXT,
+                correct_count INTEGER,
+                total_questions INTEGER NOT NULL DEFAULT 30,
+                score REAL,
+                status TEXT NOT NULL DEFAULT 'generating',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                completed_at TEXT,
+                UNIQUE (learner_id, module_no, set_no, round_no),
+                FOREIGN KEY (learner_id)
+                    REFERENCES learners(learner_id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_remedial_round_lookup
+            ON remedial_rounds (learner_id, module_no, set_no);
         """)
+
+        attempt_columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(attempts)")
+        }
+
+        optional_columns = {
+            "set_no": "INTEGER",
+            "set_type": "TEXT",
+            "round_id": "INTEGER",
+        }
+
+        for column_name, column_type in optional_columns.items():
+            if column_name not in attempt_columns:
+                conn.execute(
+                    f"ALTER TABLE attempts ADD COLUMN "
+                    f"{column_name} {column_type}"
+                )
 
 
 def create_learner(learner_id):
@@ -88,17 +140,32 @@ def record_attempt(
     concept,
     is_correct,
     question_id=None,
+    set_no=None,
+    set_type="initial",
+    round_id=None,
 ):
-    """Save one answered question to the learner's permanent history."""
+    """Save an answer and its initial or remedial assessment context."""
     learner_id = str(learner_id).strip()
     concept = str(concept).strip()
     module_name = str(module_name).strip()
+    module_no = int(module_no)
 
     if not learner_id or not concept or not module_name:
         raise ValueError("Learner ID, module name, and concept are required.")
 
-    if int(module_no) < 1:
+    if module_no < 1:
         raise ValueError("Module number must be at least 1.")
+
+    if set_no is not None:
+        set_no = int(set_no)
+        if not 1 <= set_no <= 10:
+            raise ValueError("Set number must be between 1 and 10.")
+
+    if set_type not in {"initial", "remedial"}:
+        raise ValueError("set_type must be 'initial' or 'remedial'.")
+
+    if round_id is not None:
+        round_id = int(round_id)
 
     create_learner(learner_id)
 
@@ -107,21 +174,24 @@ def record_attempt(
             """
             INSERT INTO attempts (
                 learner_id, module_no, module_name, concept,
-                question_id, is_correct, attempted_at
+                question_id, is_correct, attempted_at,
+                set_no, set_type, round_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 learner_id,
-                int(module_no),
+                module_no,
                 module_name,
                 concept,
                 str(question_id) if question_id is not None else None,
                 int(bool(is_correct)),
                 datetime.now(timezone.utc).isoformat(),
+                set_no,
+                set_type,
+                round_id,
             ),
         )
-
 
 def get_concept_statistics(learner_id, module_no=None):
     """Return attempt counts and accuracy for each concept."""
