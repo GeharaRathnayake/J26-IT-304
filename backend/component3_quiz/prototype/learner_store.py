@@ -289,6 +289,98 @@ def get_attempt_history(learner_id, limit=100):
     return [dict(row) for row in rows]
 
 
+def get_set_progress(learner_id, module_no, set_no):
+    """Return the saved state of one quiz set, if it exists."""
+    with get_connection() as conn:
+        row = conn.execute(
+            """SELECT * FROM set_progress
+               WHERE learner_id = ? AND module_no = ? AND set_no = ?""",
+            (str(learner_id).strip(), int(module_no), int(set_no)),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def save_set_progress(learner_id, module_no, set_no, status, score=None):
+    """Create or update a set's progression state."""
+    if status not in {"open", "remedial_required", "passed"}:
+        raise ValueError("Invalid set status.")
+
+    with get_connection() as conn:
+        conn.execute(
+            """INSERT INTO set_progress
+               (learner_id, module_no, set_no, status, best_score)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(learner_id, module_no, set_no)
+               DO UPDATE SET
+                   status = excluded.status,
+                   best_score = CASE
+                       WHEN excluded.best_score IS NULL
+                           THEN set_progress.best_score
+                       WHEN set_progress.best_score IS NULL
+                           THEN excluded.best_score
+                       ELSE MAX(set_progress.best_score, excluded.best_score)
+                   END""",
+            (
+                str(learner_id).strip(), int(module_no), int(set_no),
+                status, score,
+            ),
+        )
+
+
+def start_remedial_round(
+    learner_id, module_no, set_no, weak_concepts, questions
+):
+    """Create a remedial round and save its question IDs and content."""
+    import json
+
+    with get_connection() as conn:
+        row = conn.execute(
+            """SELECT COALESCE(MAX(round_no), 0) AS last_round
+               FROM remedial_rounds
+               WHERE learner_id = ? AND module_no = ? AND set_no = ?""",
+            (str(learner_id).strip(), int(module_no), int(set_no)),
+        ).fetchone()
+        round_no = int(row["last_round"]) + 1
+
+        cursor = conn.execute(
+            """INSERT INTO remedial_rounds
+               (learner_id, module_no, set_no, round_no,
+                weak_concepts_json, questions_json, total_questions, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'in_progress')""",
+            (
+                str(learner_id).strip(), int(module_no), int(set_no),
+                round_no,
+                json.dumps(list(weak_concepts), ensure_ascii=False),
+                json.dumps(questions, ensure_ascii=False, default=str),
+                len(questions),
+            ),
+        )
+        return {"round_id": cursor.lastrowid, "round_no": round_no}
+
+
+def finish_remedial_round(round_id, correct_count, total_questions, passed):
+    """Save the final score and status for a remedial round."""
+    total_questions = int(total_questions)
+    correct_count = int(correct_count)
+    if total_questions <= 0 or not 0 <= correct_count <= total_questions:
+        raise ValueError("Invalid remedial score.")
+
+    score = round(correct_count / total_questions * 100, 1)
+    status = "passed" if passed else "failed"
+
+    with get_connection() as conn:
+        conn.execute(
+            """UPDATE remedial_rounds
+               SET correct_count = ?, total_questions = ?, score = ?,
+                   status = ?, completed_at = ?
+               WHERE round_id = ?""",
+            (
+                correct_count, total_questions, score, status,
+                datetime.now(timezone.utc).isoformat(), int(round_id),
+            ),
+        )
+
+
 if __name__ == "__main__":
     initialize_database()
     print(f"Database ready: {DB_PATH}")

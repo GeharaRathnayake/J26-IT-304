@@ -130,17 +130,63 @@ async function startQuiz() {
   message("");
   $("resultPanel").classList.add("hidden");
   $("progressPanel").classList.add("hidden");
+
   try {
-    const data = await api(`/api/quiz?learner_id=${encodeURIComponent(learner())}&module_no=${moduleNo()}`);
+    const learnerId = learner();
+    const selectedModule = moduleNo();
+
+    // Find the first available set for this learner.
+    const overview = await api(
+      `/api/sets?learner_id=${encodeURIComponent(learnerId)}&module_no=${selectedModule}`
+    );
+
+    const sets = Array.isArray(overview.sets)
+      ? overview.sets
+      : Array.isArray(overview.items)
+        ? overview.items
+        : Object.values(overview).find(Array.isArray) || [];
+
+    const set = sets.find(item =>
+      item.status === "open" || item.status === "remedial_required"
+    );
+
+    if (!set) {
+      throw new Error(
+        sets.length
+          ? "No available set found. Check the set progress."
+          : "The set-progress response did not contain a set list."
+      );
+    }
+
+    const setNo = Number(
+      set.set_no ?? set.setNo ?? set.number ?? (sets.indexOf(set) + 1)
+    );
+    const isRemedial = set.status === "remedial_required";
+    const endpoint = isRemedial ? "/api/remedial" : "/api/quiz";
+
+    const data = await api(
+      `${endpoint}?learner_id=${encodeURIComponent(learnerId)}&module_no=${selectedModule}&set_no=${setNo}`
+    );
+
     currentQuiz = data;
+    currentQuiz.set_no = setNo;
+    currentQuiz.is_remedial = isRemedial;
     currentIndex = 0;
-    $("quizTitle").textContent = data.module_name + " ? Quiz";
-    $("quizMode").textContent = data.mode + " ? " + data.total + " questions";
+
+    $("quizTitle").textContent =
+      `${data.module_name} - Set ${setNo}${isRemedial ? " Remedial Test" : " Quiz"}`;
+    $("quizMode").textContent =
+      `${isRemedial ? "Remedial practice (pass: 28/30)" : "Initial quiz (pass: 9/10)"} - ${data.total} questions`;
+
     $("quizPanel").classList.remove("hidden");
     renderQuestion();
-    $("quizPanel").scrollIntoView({behavior:"smooth",block:"start"});
-  } catch(e) { message(e.message, true); }
-  finally { busy = false; $("start").disabled = false; }
+    $("quizPanel").scrollIntoView({behavior:"smooth", block:"start"});
+  } catch (e) {
+    message(e.message, true);
+  } finally {
+    busy = false;
+    $("start").disabled = false;
+  }
 }
 
 async function submitQuiz() {

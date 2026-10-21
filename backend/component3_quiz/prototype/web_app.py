@@ -9,11 +9,15 @@ BASE = Path(__file__).resolve().parent
 FRONTEND = BASE.parents[2] / "frontend" / "public"
 sys.path.insert(0, str(BASE))
 
-from adaptive_engine import choose_questions, normalize_answer
+from adaptive_engine import (
+    choose_questions, normalize_answer, load_normalized_bank,
+)
 from learner_store import (
     initialize_database, create_learner, record_attempt,
     get_module_statistics, get_concept_statistics,
     get_weak_concepts, get_unassessed_concepts,
+    get_connection, get_set_progress, save_set_progress,
+    start_remedial_round, finish_remedial_round,
 )
 from knowledge_graph import MODULES, get_module, get_concepts
 from mastery_controller import evaluate_module
@@ -82,6 +86,170 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, {"modules": MODULES})
                 return
 
+            if parsed.path == "/api/sets":
+                learner = params.get("learner_id", [""])[0].strip()
+                module_no = int(params.get("module_no", ["1"])[0])
+
+                if not learner or get_module(module_no) is None:
+                    send_json(self, {
+                        "error": "Enter a learner ID and valid module."
+                    }, 400)
+                    return
+
+                initialize_database()
+                create_learner(learner)
+
+                sets = []
+                previous_passed = True
+
+                for set_no in range(1, 11):
+                    saved = get_set_progress(learner, module_no, set_no)
+                    saved_status = saved["status"] if saved else None
+
+                    if saved_status == "passed":
+                        status = "passed"
+                    elif saved_status == "remedial_required":
+                        status = "remedial_required"
+                    elif previous_passed:
+                        status = "open"
+                    else:
+                        status = "locked"
+
+                    sets.append({
+                        "set_no": set_no,
+                        "status": status,
+                        "best_score": saved.get("best_score") if saved else None,
+                    })
+
+                    previous_passed = status == "passed"
+
+                send_json(self, {
+                    "learner_id": learner,
+                    "module_no": module_no,
+                    "sets": sets,
+                })
+                return
+
+            if parsed.path == "/api/remedial":
+                learner = params.get("learner_id", [""])[0].strip()
+                module_no = int(params.get("module_no", ["1"])[0])
+                set_no = int(params.get("set_no", ["1"])[0])
+
+                if not learner:
+                    send_json(self, {"error": "Please enter a learner ID."}, 400)
+                    return
+
+                module = get_module(module_no)
+                if module is None or not 1 <= set_no <= 10:
+                    send_json(self, {"error": "Invalid module or set number."}, 400)
+                    return
+
+                initialize_database()
+                create_learner(learner)
+
+                for previous_no in range(1, set_no):
+                    previous = get_set_progress(learner, module_no, previous_no)
+                    if not previous or previous.get("status") != "passed":
+                        send_json(self, {
+                            "error": f"Set {set_no} is locked. Pass Set {previous_no} first."
+                        }, 409)
+                        return
+
+                current = get_set_progress(learner, module_no, set_no)
+                if not current or current.get("status") != "remedial_required":
+                    send_json(self, {
+                        "error": "This set does not currently require remedial practice."
+                    }, 409)
+                    return
+
+                # Identify weak concepts and question IDs already attempted
+                # in the initial assessment and earlier remedial rounds.
+                with get_connection() as conn:
+                    rows = conn.execute(
+                        """SELECT question_id, concept, is_correct
+                           FROM attempts
+                           WHERE learner_id = ? AND module_no = ?
+                             AND set_no = ?""",
+                        (learner, module_no, set_no),
+                    ).fetchall()
+
+                weak_concepts = list(dict.fromkeys(
+                    str(row["concept"] or "General")
+                    for row in rows
+                    if row["is_correct"] in (0, False)
+                ))
+                excluded_ids = {str(row["question_id"]) for row in rows
+                                if row["question_id"] is not None}
+
+                bank = load_normalized_bank()
+                module_questions = [
+                    q for q in bank
+                    if int(q.get("module_no", -1)) == module_no
+                    and str(q.get("id")) not in excluded_ids
+                ]
+
+                # Prefer questions on weak concepts, then fill from other
+                # unused questions in the same module if necessary.
+                weak_pool = [
+                    q for q in module_questions
+                    if q.get("concept_tag", "General") in weak_concepts
+                ]
+                other_pool = [
+                    q for q in module_questions
+                    if q.get("concept_tag", "General") not in weak_concepts
+                ]
+
+                import random
+                random.shuffle(weak_pool)
+                random.shuffle(other_pool)
+                questions = (weak_pool + other_pool)[:30]
+
+                if len(questions) != 30:
+                    send_json(self, {
+                        "error": (
+                            "Not enough unused questions for a 30-question remedial test. "
+                            f"Found {len(questions)}."
+                        )
+                    }, 500)
+                    return
+
+                round_info = start_remedial_round(
+                    learner_id=learner,
+                    module_no=module_no,
+                    set_no=set_no,
+                    weak_concepts=weak_concepts,
+                    questions=questions,
+                )
+
+                token = secrets.token_urlsafe(24)
+                SESSIONS[token] = {
+                    "learner": learner,
+                    "module_no": module_no,
+                    "module_name": module["module_name"],
+                    "questions": questions,
+                    "mode": "remedial",
+                    "set_no": set_no,
+                    "set_type": "remedial",
+                    "round_id": round_info["round_id"],
+                }
+
+                send_json(self, {
+                    "session_id": token,
+                    "learner_id": learner,
+                    "module_no": module_no,
+                    "module_name": module["module_name"],
+                    "set_no": set_no,
+                    "mode": f"Remedial assessment - Set {set_no}",
+                    "round_no": round_info["round_no"],
+                    "total": 30,
+                    "weak_concepts": weak_concepts,
+                    "questions": [
+                        public_question(q, i)
+                        for i, q in enumerate(questions, 1)
+                    ],
+                })
+                return
+
             if parsed.path == "/api/progress":
                 learner = params.get("learner_id", [""])[0].strip()
                 module_no = int(params.get("module_no", ["1"])[0])
@@ -109,6 +277,7 @@ class Handler(BaseHTTPRequestHandler):
             if parsed.path == "/api/quiz":
                 learner = params.get("learner_id", [""])[0].strip()
                 module_no = int(params.get("module_no", ["1"])[0])
+                set_no = int(params.get("set_no", ["1"])[0])
 
                 if not learner:
                     send_json(self, {"error": "Please enter a learner ID."}, 400)
@@ -119,9 +288,14 @@ class Handler(BaseHTTPRequestHandler):
                     send_json(self, {"error": "Invalid module number."}, 400)
                     return
 
+                if not 1 <= set_no <= 10:
+                    send_json(self, {"error": "Set number must be between 1 and 10."}, 400)
+                    return
+
                 initialize_database()
                 create_learner(learner)
 
+                # Preserve the existing knowledge-graph prerequisite checks.
                 for prerequisite_no in __import__(
                     "knowledge_graph"
                 ).get_prerequisite_modules(module_no):
@@ -134,35 +308,55 @@ class Handler(BaseHTTPRequestHandler):
                         }, 409)
                         return
 
-                concepts = get_concepts(module_no)
-                unassessed = get_unassessed_concepts(learner, module_no, concepts)
-                weak = get_weak_concepts(learner, module_no)
+                # Every earlier set must be passed before this set can open.
+                for previous_no in range(1, set_no):
+                    previous = get_set_progress(learner, module_no, previous_no)
+                    if not previous or previous.get("status") != "passed":
+                        send_json(self, {
+                            "error": f"Set {set_no} is locked. Pass Set {previous_no} first."
+                        }, 409)
+                        return
 
-                if unassessed:
-                    focus = unassessed
-                    try_qwen = False
-                    mode = "Initial assessment"
-                elif weak:
-                    focus = weak
-                    try_qwen = True
-                    mode = "Targeted practice for weak concepts"
-                else:
-                    focus = concepts
-                    try_qwen = False
-                    mode = "Module practice"
+                current = get_set_progress(learner, module_no, set_no)
+                current_status = current.get("status") if current else None
 
-                questions = choose_questions(
-                    learner_id=learner,
-                    module_no=module_no,
-                    module_name=module["module_name"],
-                    concepts=focus,
-                    count=10,
-                    try_qwen=try_qwen,
-                    set_no=1 if unassessed else None,
-                )
+                if current_status == "passed":
+                    send_json(self, {
+                        "error": f"Set {set_no} has already been passed."
+                    }, 409)
+                    return
 
-                if not questions:
-                    send_json(self, {"error": "No valid questions were found for this module."}, 500)
+                if current_status == "remedial_required":
+                    send_json(self, {
+                        "error": f"Set {set_no} requires a remedial test before you can continue."
+                    }, 409)
+                    return
+
+                # Read concepts from this exact set in the normalized question bank.
+                bank = load_normalized_bank()
+                set_questions = [
+                    q for q in bank
+                    if int(q.get("module_no", -1)) == module_no
+                    and int(q.get("set_no", -1)) == set_no
+                ]
+                if len(set_questions) != 10:
+                    send_json(self, {
+                        "error": f"Set {set_no} must contain exactly 10 valid questions; found {len(set_questions)}."
+                    }, 500)
+                    return
+
+                concepts = list(dict.fromkeys(
+                    q.get("concept_tag", "General") for q in set_questions
+                ))
+
+                # Use the exact 10 prevalidated questions assigned to this set.
+                # Remedial practice uses its own adaptive selection route.
+                questions = list(set_questions)
+
+                if len(questions) != 10:
+                    send_json(self, {
+                        "error": f"Could not load 10 questions for Set {set_no}."
+                    }, 500)
                     return
 
                 token = secrets.token_urlsafe(24)
@@ -171,7 +365,10 @@ class Handler(BaseHTTPRequestHandler):
                     "module_no": module_no,
                     "module_name": module["module_name"],
                     "questions": questions,
-                    "mode": mode,
+                    "mode": "initial",
+                    "set_no": set_no,
+                    "set_type": "initial",
+                    "round_id": None,
                 }
 
                 send_json(self, {
@@ -179,9 +376,13 @@ class Handler(BaseHTTPRequestHandler):
                     "learner_id": learner,
                     "module_no": module_no,
                     "module_name": module["module_name"],
-                    "mode": mode,
+                    "set_no": set_no,
+                    "mode": f"Initial assessment - Set {set_no}",
                     "total": len(questions),
-                    "questions": [public_question(q, i) for i, q in enumerate(questions, 1)],
+                    "questions": [
+                        public_question(q, i)
+                        for i, q in enumerate(questions, 1)
+                    ],
                 })
                 return
 
@@ -245,6 +446,9 @@ class Handler(BaseHTTPRequestHandler):
                     concept=question.get("concept_tag", "General"),
                     is_correct=is_correct,
                     question_id=qid,
+                    set_no=session.get("set_no"),
+                    set_type=session.get("set_type", "initial"),
+                    round_id=session.get("round_id"),
                 )
 
                 result = {
@@ -282,13 +486,46 @@ class Handler(BaseHTTPRequestHandler):
 
             learner = session["learner"]
             module_no = session["module_no"]
+            set_no = session.get("set_no", 1)
+            set_type = session.get("set_type", "initial")
+            round_id = session.get("round_id")
             correct_count = sum(1 for result in results if result["correct"])
             total = len(questions)
             score_percent = round(correct_count / total * 100, 1)
-            passed = correct_count >= PASS_COUNT
+
+            if set_type == "remedial":
+                passed = total == 30 and correct_count >= 28
+                pass_rule = "At least 28 out of 30 correct"
+                if round_id is None:
+                    send_json(self, {"error": "Remedial round ID is missing."}, 500)
+                    return
+
+                finish_remedial_round(
+                    round_id=round_id,
+                    correct_count=correct_count,
+                    total_questions=total,
+                    passed=passed,
+                )
+                save_set_progress(
+                    learner, module_no, set_no,
+                    "passed" if passed else "remedial_required",
+                    score_percent,
+                )
+            else:
+                passed = total == 10 and correct_count >= 9
+                pass_rule = "At least 9 out of 10 correct"
+                save_set_progress(
+                    learner, module_no, set_no,
+                    "passed" if passed else "remedial_required",
+                    score_percent,
+                )
+
             stats = get_module_statistics(learner, module_no)
             decision = evaluate_module(learner, module_no)
-            weak = get_weak_concepts(learner, module_no)
+            weak = list(dict.fromkeys(
+                result.get("concept", "General")
+                for result in results if not result["correct"]
+            ))
 
             SESSIONS.pop(token, None)
 
@@ -297,13 +534,21 @@ class Handler(BaseHTTPRequestHandler):
                 "total": total,
                 "percentage": score_percent,
                 "passed": passed,
-                "pass_rule": "9 out of 10 correct",
+                "pass_rule": pass_rule,
+                "set_no": set_no,
+                "set_type": set_type,
+                "remedial_required": set_type == "initial" and not passed
+                    or set_type == "remedial" and not passed,
                 "results": results,
                 "weak_concepts": weak,
                 "module_accuracy": stats["accuracy"],
                 "module_mastered": stats["mastered"],
                 "decision": decision["decision"],
-                "recommendation": decision["reason"],
+                "recommendation": (
+                    f"Set {set_no} passed. You may continue to the next set."
+                    if passed else
+                    f"Set {set_no} remains locked until you pass the required assessment."
+                ),
             })
 
         except Exception as exc:
