@@ -59,15 +59,30 @@ This section outlines the individual contributions, completed Progress Presentat
 *Identifies weak Java concepts and dynamically generates new practice questions until mastery.*
 
 **PP1 Contributions (Completed) 🏆**
-- [x] Built the Learner Dashboard showing overall progress and a module dropdown for 10 specific modules.
-- [x] Developed the adaptive quiz interface displaying learning sets, questions, and immediate explanatory feedback.
-- [x] Implemented remedial practice logic to pull new questions based on identified weak concepts.
-- [x] Created the mastery progression gate (learners advance only when meeting the required score threshold).
+- [x] Developed the Learner Dashboard to display overall learning progress and provide access to 10 Java learning modules.
+- [x] Implemented a structured question bank containing 1,000 static Java questions, organized into 100 learning sets.
+- [x] Developed the adaptive quiz interface with learning sets, interactive questions, and immediate explanatory feedback.
+- [x] Implemented learner performance tracking and weak-concept identification using incorrect answers and concept tags.
+- [x] Integrated the Java Knowledge Graph using Neo4j to represent relationships between Java concepts.
+- [x] Integrated the local Qwen3-4B LLM through llama.cpp for generating targeted remedial questions.
+- [x] Implemented mastery-based progression, requiring learners to achieve at least 9/10 in static quizzes before progressing.
+- [x] Developed a remedial assessment mechanism that generates 30 targeted questions, requiring at least 28/30 to pass.
 
 **PP2 Roadmap (In Progress) 🚀**
-- [ ] Rigorously test adaptive LLM question generation against the Java Knowledge Graph.
-- [ ] Refine weak-topic remediation algorithms based on early user interaction data.
-- [ ] Evaluate system accuracy (non-repetitive question generation) and overall usability.
+- [ ] Evaluate the quality, Java correctness, relevance, and difficulty of LLM-generated remedial questions.
+- [ ] Test knowledge graph integration and its effectiveness in identifying related weak concepts.
+- [ ] Evaluate question diversity and non-repetition across multiple remedial rounds.
+- [ ] Refine adaptive question generation based on learner performance and feedback.
+- [ ] Conduct user testing and evaluate the usability and effectiveness of the adaptive quiz component.
+- [ ] Panel Suggestions = try to use a model. Like to track the performance or to personalize or give a sample quiz and then according to that create the next question or complexity of the questions also customize.
+
+**Technology Stack**
+- Backend: Python
+- Frontend: HTML, CSS, JavaScript
+- Database: SQLite
+- Knowledge Graph: Neo4j
+- LLM: Qwen3-4B (GGUF)
+- Local LLM Inference: llama.cpp
 
 ### Component 4: Attention-Monitored Video Learning System
 **Owner:** Haputhanthrie D.D (IT23166110)
