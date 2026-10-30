@@ -113,16 +113,45 @@ The platform utilizes a **microservices-inspired architecture** operating on a s
 
 ## 📁 Project Structure Overview (Monorepo)
 ```text
-J26-IT-304-Platform/
-├── frontend/                 # Shared React Application (UI for all 4 components)
-├── backend/                  # FastAPI Services
-│   ├── rag_chatbot/          # Component 1: Curriculum gating & vector retrieval
-│   ├── voice_tutor/          # Component 2: Confusion classifier & strategy engine
-│   ├── mastery_quiz/         # Component 3: Learner profile & question generator
-│   └── video_attention/      # Component 4: OpenCV streams & transcript NLP
-├── models/                   # Local weights (YOLO, TF-IDF pickles, etc.)
-├── docs/                     # Research proposals, TAFs, and PP1/PP2 presentations
-└── SETUP.md                  # Unified installation guide for the platform
+J26-IT-304/
+├── backend/                  # FastAPI Backend Service (Adaptive AI Voice Tutor)
+│   ├── app/                  # Application source code
+│   │   ├── classifier/       # Hybrid confusion classifier (TF-IDF + Logistic Regression & rules)
+│   │   ├── escalation/       # Multi-tier pedagogical strategy escalation engine & session tracking
+│   │   ├── generation/       # LLM prompt builder, Ollama adapter & deterministic template fallbacks
+│   │   ├── config.py         # Application configuration & environment settings
+│   │   ├── orchestrator.py   # Pipeline orchestration between classifier, engine, and LLM
+│   │   ├── schemas.py        # Pydantic data models and API request/response schemas
+│   │   └── topics.py         # Java topic catalogue and curriculum scope definitions
+│   ├── benchmarks/           # Performance, latency, and response quality benchmarks
+│   ├── models/               # Trained model artifacts (clf-v1.0.0 confusion classifier)
+│   ├── scripts/              # Utility scripts for data validation and model testing
+│   ├── tests/                # Pytest unit and integration test suites
+│   ├── compose.yaml          # Docker Compose container orchestration
+│   ├── Dockerfile            # Container build specification
+│   └── requirements.txt      # Python runtime dependencies (Python 3.13)
+├── frontend/                 # React 19 + TypeScript + Vite + Tailwind CSS Web Application
+│   ├── src/
+│   │   ├── components/       # Reusable UI & shader/canvas visualizer components
+│   │   ├── features/
+│   │   │   └── tutor/        # Voice tutor UI, audio visualizers (Aura & Wave), chat & episode store
+│   │   ├── hooks/            # Custom React hooks (speech input, microphone, media streams)
+│   │   ├── lib/              # Shared helper functions and utility definitions
+│   │   ├── index.css         # Styling system, design tokens, and theme configurations
+│   │   └── main.tsx          # Application entry point
+│   ├── public/               # Static assets, branding, and icons
+│   ├── package.json          # Node dependencies & project build scripts
+│   └── vite.config.ts        # Vite build tool and development server configuration
+├── experiment1/              # Research & ML Experiments for Confusion Classifier
+│   ├── confusion_baseline/   # Baseline model architectures and benchmark comparisons
+│   ├── data/                 # Training, validation, and probe datasets
+│   ├── models/               # Serialized classifier weights, vectorizers, and metrics
+│   ├── notebooks/            # Jupyter notebooks for data analysis and model training
+│   ├── probe/                # Behavioral probe test cases and diagnostic suites
+│   ├── reports/              # Experiment logs and evaluation results
+│   └── scripts/              # Data generation, cleaning, and preprocessing pipelines
+├── SETUP.md                  # Comprehensive developer setup guide (backend, frontend, Ollama)
+└── README.md                 # System architecture, research documentation, and progress checklist
 ```
 
 ## 🖥️ Demo UI Prototype for Used Data Collection
