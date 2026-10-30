@@ -42,8 +42,10 @@ This section outlines the individual contributions, completed Progress Presentat
 
 **PP1 Contributions (Completed) 🏆**
 - [x] Trained and integrated Hybrid Confusion Classifier (TF-IDF + Logistic Regression) with rule-based safety guards.
+- [x] Benchmarked ML Confusion Classifier (160 hyperparameter configs via 5-fold `StratifiedGroupKFold`), selecting TF-IDF + Logistic Regression achieving 0.663 Macro F1 and 81.4% Recall.
 - [x] Built the Multi-Tier Adaptive Strategy Engine (Theory, Example, Simplified, Analogy).
 - [x] Decoupled Local LLM Pipeline (Ollama) with dynamic response generation and deterministic template fallbacks.
+- [x] Benchmarked Local LLMs (`llama3.2:3b` vs `qwen3:4b` over prompt revisions r1–r3), achieving 100% shippable form and ~4.6s median generation latency at 220 tokens with GPU acceleration.
 - [x] Implemented seamless toggle between voice input and text chat in the UI.
 - [x] Replaced generic confirmation prompts with concept-checking questions to detect real understanding.
 
@@ -94,9 +96,20 @@ The platform utilizes a **microservices-inspired architecture** operating on a s
 4. **Local LLM Layer:** Ollama running quantized models (`llama3.2:3b`, `Qwen2.5-Coder`) to generate responses and MCQs natively on institutional hardware.
 
 ## 📊 Data Collection & Ethical Approval
-*   **Data Minimization:** No raw webcam frames, voice audio, or identifiable biometric data are ever saved to the disk or transmitted externally. All processing (MediaPipe, YOLO, Faster-Whisper) occurs in-memory.
-*   **Datasets:** Used public datasets (DAISEE for engagement mapping, synthetic HuggingFace datasets for confusion detection training). 
-*   **Consent:** Explicit UI indicators and opt-in toggles are required before the camera or microphone activates. Human participant evaluation in PP2 is subject to SLIIT ethical review board approval.
+
+### 📦 Component-Wise Datasets
+| Component | Dataset / Data Source | Purpose & Description |
+|---|---|---|
+| **Component 1:** Curriculum-Aware RAG Chatbot | **Institutional Java Curriculum & Lecture Modules** | Structured lecture slides, code examples, and lab exercises tagged by topic prerequisites. Used to construct the scoped Vector Store (ChromaDB/FAISS) enforcing strict curriculum gating so beginners are never exposed to unlearned advanced syntax. |
+| **Component 2:** Adaptive AI Voice Tutor | **`JavaQuestionSynthFinal` (HuggingFace) + OOD Diagnostic Probes** | Pinned synthetic dataset (`nitinnovtech-ai-space/JavaQuestionSynthFinal` @ `e29cfdd4`) containing beginner Java Q&A pairs labeled by correctness as a proxy for confusion to train the TF-IDF + Logistic Regression model. Augmented with behavioral probe sets to tune deterministic rule guards. |
+| **Component 3:** Mastery-Based Quiz Generator | **Curated Java Knowledge Graph & Question Repository** | Pre-tagged Java conceptual questions categorized across 10 progressive learning modules, prerequisite relationships, and difficulty tiers (Easy/Medium/Hard) to enable dynamic, non-repetitive remedial question generation. |
+| **Component 4:** Attention-Monitored Video System | **DAiSEE Dataset & Classroom Engagement Imagery** | Public affective learning datasets (DAiSEE) and classroom visual datasets used to train the YOLOv8n student state / engagement model (0.81 mAP50), aligned with timestamped lecture transcripts to map distraction windows to targeted assessment topics. |
+
+### 🛡️ Ethical Approval & Privacy-by-Design
+*   **Zero Persistent Biometric Storage:** No raw webcam video feeds, facial landmark coordinates, or microphone audio recordings are ever written to disk or transmitted to external servers. All processing (MediaPipe, YOLOv8n, Faster-Whisper) occurs strictly in-memory (RAM) on local hardware.
+*   **Explicit Informed Consent:** Transparent UI indicators, active recording visualizers, and opt-in switches ensure students explicitly authorize camera and microphone usage before sensors engage.
+*   **Institutional Ethical Review:** Human participant evaluations and classroom testing protocols scheduled for PP2 comply with SLIIT ethical review board standards and institutional data privacy requirements.
+
 
 ## 🧠 Machine Learning Pipeline
 *   **Voice Tutor:** `Text -> TF-IDF Vectorizer -> Logistic Regression -> Strategy Class`
@@ -150,13 +163,28 @@ J26-IT-304/
 │   ├── probe/                # Behavioral probe test cases and diagnostic suites
 │   ├── reports/              # Experiment logs and evaluation results
 │   └── scripts/              # Data generation, cleaning, and preprocessing pipelines
+├── docs/                     # Research assets and project documentation
+│   └── images/               # User testing and classroom evaluation evidence photos
 ├── SETUP.md                  # Comprehensive developer setup guide (backend, frontend, Ollama)
 └── README.md                 # System architecture, research documentation, and progress checklist
 ```
 
 ## 🖥️ Demo UI Prototype for Used Data Collection
+
+> 🌐 **Live Prototype:** [https://ai-voice-tutor-demo.vercel.app/](https://ai-voice-tutor-demo.vercel.app/)
+
 The platform's UI serves as the primary data collection point for the ML models in a non-intrusive way:
 1.  **Voice / Text Toggle:** Students switch to voice mode, passing microphone blobs to the backend for STT, yielding text data for the TF-IDF classifier.
 2.  **Webcam Panel (Video Learning):** A small, indicator-lit preview window shows the student they are being monitored. In-memory frames are processed to yield bounding boxes and EAR (Eye Aspect Ratio) scores.
 3.  **Quiz Selections:** Radio buttons and submit actions feed directly into the mastery progression algorithm, silently updating the shared database's knowledge graph nodes.
 4.  **IDE Workspace:** Keystrokes and run-button clicks inside the React code editor are logged to correlate active coding time against chatbot queries.
+
+## 📸 Research Evaluation & User Testing Evidence
+
+Photographic evidence from ongoing user testing, prototype evaluation, and classroom data collection sessions with undergraduate students:
+
+<p align="center">
+  <img src="docs/images/user_testing_session.png" alt="User Testing Session" width="48%" />
+  <img src="docs/images/classroom_evaluation_session.jpg" alt="Classroom Evaluation Session" width="48%" />
+</p>
+
