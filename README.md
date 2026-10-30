@@ -71,20 +71,26 @@ This section outlines the individual contributions, completed Progress Presentat
 
 ### Component 4: Attention-Monitored Video Learning System
 **Owner:** Haputhanthrie D.D (IT23166110)
-*Maps low-attention timestamps to specific video topics to drive post-video MCQ generation.*
+*Matches low-attention timestamps to the lecture transcript so that the post-video MCQs focus on the parts the student missed.Maps low-attention timestamps to specific video topics to drive post-video MCQ generation.*
 
 **PP1 Contributions (Completed) 🏆**
-- [x] Trained YOLOv8n Attention model (0.81 mAP50) on classroom images for student states.
-- [x] Integrated MediaPipe for face checking (video pauses if no face is detected).
-- [x] Built the Question Engine to generate 10 MCQs from the transcript, mapped to distraction times.
-- [x] Implemented weighted marking (Easy=1, Medium=2, Hard=3) based on attention metrics.
-- [x] Ensured privacy-by-design (No cloud services, no stored video, local camera processing only).
+- [x] Fine-tuned a YOLOv8n attention detector on the Roboflow Student Attention Tracking v2 dataset (1,435 images, 6 student states). Validation results: mAP50 about 0.81, precision about 0.74, recall about 0.73.
+- [x] Integrated MediaPipe Face Landmarker for face checking (the video pauses when no face is detected).
+- [x] Saved distractions of 10 seconds or more with timestamps (shorter ones are ignored).
+- [x] Built the Question Engine: a local Gemma model (via llama.cpp) generates 10 MCQs from the transcript, prioritising the distracted areas.
+- [x] Implemented weighted marking by question difficulty (Easy=1, Medium=2, Hard=3) and a quiz score screen.
+- [x] Privacy by design: no cloud services, no stored video, local camera processing only.
+
 
 **PP2 Roadmap (In Progress) 🚀**
-- [ ] Implement the Pass/Fail check (50% threshold) to unlock the next video module.
-- [ ] Send identified weak topics and marks to the shared Knowledge Graph/Learner Profile.
-- [ ] Add English subtitles directly from the timestamped transcript for accessibility.
-- [ ] Finalize the post-quiz result screen to explicitly list the timestamps where the student lost focus.
+- [ ] Live attention intervention: when a student is distracted for more than 10 seconds, show an on-screen cue to regain their attention (for example an alert, a short prompt or a quick recap question), while still recording the distraction for the quiz.
+- [ ] Train an additional model to support the intervention (exact role to be finalised with the supervisor).
+- [ ] Pass/Fail check (50% of total marks) to unlock the next video module.
+- [ ] Set the easy/medium/hard question mix from the student's distraction level.
+- [ ] Send identified weak topics and marks to the shared Knowledge Graph / Learner Profile.
+- [ ] Add English subtitles from the timestamped transcript for accessibility.
+- [ ] Finalize the post-quiz result screen to list the timestamps where the student lost focus.
+- [ ] End-of-course summary (where focus was lost, marks) fetched from the knowledge graph.
 
 ---
 
@@ -103,7 +109,7 @@ The platform utilizes a **microservices-inspired architecture** operating on a s
 | **Component 1:** Curriculum-Aware RAG Chatbot | **Institutional Java Curriculum & Lecture Modules** | Structured lecture slides, code examples, and lab exercises tagged by topic prerequisites. Used to construct the scoped Vector Store (ChromaDB/FAISS) enforcing strict curriculum gating so beginners are never exposed to unlearned advanced syntax. |
 | **Component 2:** Adaptive AI Voice Tutor | **`JavaQuestionSynthFinal` (HuggingFace) + OOD Diagnostic Probes** | Pinned synthetic dataset (`nitinnovtech-ai-space/JavaQuestionSynthFinal` @ `e29cfdd4`) containing beginner Java Q&A pairs labeled by correctness as a proxy for confusion to train the TF-IDF + Logistic Regression model. Augmented with behavioral probe sets to tune deterministic rule guards. |
 | **Component 3:** Mastery-Based Quiz Generator | **Curated Java Knowledge Graph & Question Repository** | Pre-tagged Java conceptual questions categorized across 10 progressive learning modules, prerequisite relationships, and difficulty tiers (Easy/Medium/Hard) to enable dynamic, non-repetitive remedial question generation. |
-| **Component 4:** Attention-Monitored Video System | **DAiSEE Dataset & Classroom Engagement Imagery** | Public affective learning datasets (DAiSEE) and classroom visual datasets used to train the YOLOv8n student state / engagement model (0.81 mAP50), aligned with timestamped lecture transcripts to map distraction windows to targeted assessment topics. |
+| **Component 4:** Attention-Monitored Video System | **Roboflow Student Attention Tracking v2** | 1,435 labelled classroom images (YOLOv8 format, 640x640) with 6 states: Attentive, Daydreaming, Distracted, Hand Rising, Phone Use, Sleepy. Used to fine-tune YOLOv8n. Distraction times are matched with the lecture transcript to choose the quiz topics. |
 
 ### 🛡️ Ethical Approval & Privacy-by-Design
 *   **Zero Persistent Biometric Storage:** No raw webcam video feeds, facial landmark coordinates, or microphone audio recordings are ever written to disk or transmitted to external servers. All processing (MediaPipe, YOLOv8n, Faster-Whisper) occurs strictly in-memory (RAM) on local hardware.
@@ -113,14 +119,16 @@ The platform utilizes a **microservices-inspired architecture** operating on a s
 
 ## 🧠 Machine Learning Pipeline
 *   **Voice Tutor:** `Text -> TF-IDF Vectorizer -> Logistic Regression -> Strategy Class`
-*   **Video Attention:** `Webcam Frame -> MediaPipe (Landmarks) + YOLOv8n (Engagement) -> Time-Series Aggregation -> Attention Tier`
-*   **Generative Pipelines:** `Context (Transcript/Completed Lectures) -> Prompt Template -> Local LLM -> Output Parser -> Filter/Validation`
+*   **Video Attention:** `Webcam frame -> YOLOv8n (student state) + MediaPipe (face present?) -> Attentive / Distracted -> distraction of 10 s or more saved with timestamp`
+*   **Generative Pipelines:** `Transcript + distraction timestamps -> prompt -> local Gemma (llama.cpp) -> JSON-schema-constrained output -> quiz and marks`
+*   **Planned (PP2):** `Distraction reaches 10 s -> on-screen attention cue -> distraction still logged for the quiz`
+
 
 ## 💻 Technology Stack
 *   **Frontend:** React 19, TypeScript, Vite, Tailwind CSS
 *   **Backend:** Python 3.13, FastAPI
-*   **Local AI / LLMs:** Ollama, Llama 3.2, Qwen2.5-Coder
-*   **Computer Vision & Audio:** OpenCV, MediaPipe, YOLOv8n, Faster-Whisper, Piper TTS
+*   **Local AI / LLMs:** Ollama, Llama 3.2, Qwen2.5-Coder, llama.cpp with a Gemma GGUF model (question generation)
+*   **Computer Vision & Audio:** Ultralytics YOLOv8n, MediaPipe, OpenCV, PyTorch, NumPy, Pillow
 *   **Data Science:** Scikit-Learn, Pandas, NumPy
 *   **Vector Database:** ChromaDB / FAISS (for RAG)
 
