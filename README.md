@@ -46,6 +46,17 @@ This section outlines the individual contributions, completed Progress Presentat
 - [ ] Improve prompt templates for more accurate and pedagogically appropriate answers.
 - [ ] Expand testing with additional held-out questions and student feedback.
 - [ ] Improve retrieval and response quality for questions involving related Java concepts.
+      
+**Technology Stack**
+
+- **Programming Language:** Python 3.13
+- **Embedding Model:** Sentence Transformers (`all-MiniLM-L6-v2`)
+- **Vector Database:** ChromaDB
+- **LLM:** Qwen2.5-Coder-3B-Instruct (GGUF, Q4_K_M)
+- **Local LLM Inference:** llama.cpp
+- **Backend Framework:** FastAPI
+- **Libraries:** PyMuPDF, Sentence Transformers, ChromaDB
+- **API Communication:** REST API
 ### Component 2: Adaptive AI Voice Tutor for Java Programming
 **Owner:** Lakmal H.U.A.D.Y (IT23335578)
 *ML-driven confusion detection and multi-tier strategy escalation.*
