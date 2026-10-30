@@ -22,20 +22,30 @@ Java programming is a foundational but high-failure-rate subject for orientation
 This section outlines the individual contributions, completed Progress Presentation 1 (PP1) milestones, and the roadmap for Progress Presentation 2 (PP2).
 
 ### Component 1: Curriculum-Aware RAG-Based AI Chatbot
+
 **Owner:** Mapatuna M.D.N (IT23157682)
-*Retrieval restricted to the lectures a student has completed, inside a live coding environment.*
+
+*A curriculum-aware Java programming chatbot that uses Retrieval-Augmented Generation (RAG) to answer student questions using only completed lecture materials.*
 
 **PP1 Contributions (Completed) 🏆**
-- [x] Implemented Curriculum Gate: Retrieval strictly limited to completed lectures.
-- [x] Set up local embeddings, Vector DB, and LLM in a single RAG pipeline.
-- [x] Designed the UI with Problem description, test cases, and code editor.
-- [x] Added content-margin validation to avoid blocking valid questions that overlap with locked lecture topics.
+
+- [x] Developed a local RAG pipeline using Sentence Transformers, ChromaDB, and a locally hosted LLM.
+- [x] Integrated `all-MiniLM-L6-v2` for generating semantic embeddings of lecture content and student questions.
+- [x] Implemented slide-level lecture chunking with lecture and slide metadata.
+- [x] Integrated ChromaDB as the persistent vector database for storing and retrieving lecture content.
+- [x] Integrated Qwen2.5-Coder-3B-Instruct (GGUF, Q4_K_M) through llama.cpp for local AI answer generation.
+- [x] Implemented curriculum gating to restrict retrieval to completed lectures.
+- [x] Added topic-scope checking and content-margin validation to reduce incorrect blocking of valid questions.
+- [x] Implemented handling of locked-topic and unrelated questions.
+- [x] Evaluated curriculum-gating behaviour using gate-on/gate-off comparisons and held-out tests.
 
 **PP2 Roadmap (In Progress) 🚀**
-- [ ] Add all remaining lectures and course materials to the Vector Database.
-- [ ] Finalize seamless integration of the chatbot panel with the live coding workspace.
-- [ ] Fine-tune the LLM prompt templates for more accurate and pedagogically sound replies.
 
+- [ ] Add remaining Java lectures and course materials to the vector database.
+- [ ] Integrate the chatbot into the shared learning platform and live coding workspace.
+- [ ] Improve prompt templates for more accurate and pedagogically appropriate answers.
+- [ ] Expand testing with additional held-out questions and student feedback.
+- [ ] Improve retrieval and response quality for questions involving related Java concepts.
 ### Component 2: Adaptive AI Voice Tutor for Java Programming
 **Owner:** Lakmal H.U.A.D.Y (IT23335578)
 *ML-driven confusion detection and multi-tier strategy escalation.*
@@ -121,7 +131,7 @@ The platform utilizes a **microservices-inspired architecture** operating on a s
 ### 📦 Component-Wise Datasets
 | Component | Dataset / Data Source | Purpose & Description |
 |---|---|---|
-| **Component 1:** Curriculum-Aware RAG Chatbot | **Institutional Java Curriculum & Lecture Modules** | Structured lecture slides, code examples, and lab exercises tagged by topic prerequisites. Used to construct the scoped Vector Store (ChromaDB/FAISS) enforcing strict curriculum gating so beginners are never exposed to unlearned advanced syntax. |
+| **Component 1:** Curriculum-Aware RAG Chatbot | **Institutional Java Curriculum and Lecture Materials** | Java lecture slides and learning materials are processed into slide-level chunks with lecture and slide metadata. Sentence Transformers (`all-MiniLM-L6-v2`) generates embeddings, which are stored in ChromaDB. The retrieval pipeline uses completed-lecture information and curriculum validation to restrict access to unlearned content. |
 | **Component 2:** Adaptive AI Voice Tutor | **`JavaQuestionSynthFinal` (HuggingFace) + OOD Diagnostic Probes** | Pinned synthetic dataset (`nitinnovtech-ai-space/JavaQuestionSynthFinal` @ `e29cfdd4`) containing beginner Java Q&A pairs labeled by correctness as a proxy for confusion to train the TF-IDF + Logistic Regression model. Augmented with behavioral probe sets to tune deterministic rule guards. |
 | **Component 3:** Component 3: Mastery-Based Quiz Generator | **Curated Java Question Repository (static_questions.json) + Java Knowledge Graph (java_knowledge_graph.json and java_concept_graph.json)** | A curated repository containing 1,000 pre-tagged Java questions organized into 10 learning modules, 100 learning sets, and concept tags. The Java Knowledge Graph, implemented using Neo4j, represents relationships between Java concepts and their prerequisites. Learner performance and incorrectly answered concept tags are used to identify weak areas. These are used to guide the local Qwen3-4B LLM in generating targeted, non-repetitive remedial questions to support mastery-based learning. |
 | **Component 4:** Attention-Monitored Video System | **Roboflow Student Attention Tracking v2** | 1,435 labelled classroom images (YOLOv8 format, 640x640) with 6 states: Attentive, Daydreaming, Distracted, Hand Rising, Phone Use, Sleepy. Used to fine-tune YOLOv8n. Distraction times are matched with the lecture transcript to choose the quiz topics. |
